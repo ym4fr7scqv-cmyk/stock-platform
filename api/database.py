@@ -59,6 +59,4 @@ conn.commit()
 cur.close()
 conn.close()
 
-    conn.commit()
-    cur.close()
-    conn.close()
+  
