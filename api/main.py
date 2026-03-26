@@ -370,5 +370,33 @@ def raw_structure(symbol: str, token: str = ""):
     return result
 
 
+@app.get("/admin/test-year/{symbol}")
+def test_year_param(symbol: str, token: str = "", year: str = "2024"):
+    expected = os.environ.get("MANUAL_TRIGGER_TOKEN", "")
+    if not expected or token != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    sahm_key = os.environ.get("SAHM_API_KEY", "")
+    if not sahm_key:
+        raise HTTPException(status_code=500, detail="SAHM_API_KEY not set")
+    from sahmk import SahmkClient
+    client = SahmkClient(sahm_key)
+    sym = symbol.upper()
+    result = {"symbol": sym, "year_param": year}
+    try:
+        raw = client._request("GET", f"/financials/{sym}/", params={"year": year})
+        result["http_status"] = "200_OK"
+        result["top_keys"] = list(raw.keys()) if isinstance(raw, dict) else str(type(raw))
+        for s in ["income_statements", "income_statement"]:
+            if isinstance(raw, dict) and s in raw:
+                recs = raw[s]
+                if isinstance(recs, list):
+                    result[s + "_count"] = len(recs)
+                    result[s + "_dates"] = [r.get("report_date") for r in recs[:5] if isinstance(r, dict)]
+    except Exception as e:
+        result["http_status"] = "FAILED"
+        result["error"] = str(e)
+    return result
+
+
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
