@@ -685,6 +685,25 @@ class SahmAdapter:
             "provenance":           provenance,
         }
 
+    # ── Sector Helpers ────────────────────────────────────────────
+
+    @staticmethod
+    def _guess_sector_type(sector: str) -> str:
+        s = (sector or "").lower()
+        if any(w in s for w in ["بنك", "مصرف", "bank", "banking"]):
+            return "banking"
+        if any(w in s for w in ["تأمين", "insurance"]):
+            return "insurance"
+        return "standard"
+
+    @staticmethod
+    def _prior_period(period: str) -> str:
+        try:
+            year = int(period.replace("FY", "").strip())
+            return f"FY{year - 1}"
+        except (ValueError, AttributeError):
+            return ""
+
     # ── Error Handler ─────────────────────────────────────────────
 
     def _handle_api_error(self, exc: Exception, endpoint: str,
