@@ -292,6 +292,12 @@ class AnalysisWorker:
             "5. analysis_text: فقرة واحدة باللغة العربية (100-150 كلمة)\n"
             "6. signals: من 2 إلى 4 عناصر فقط — لا حشو\n"
             "7. risks: من 1 إلى 3 عناصر فقط — مرتبة من الأعلى خطورة للأدنى\n\n"
+            "قاعدة DATA_INSUFFICIENT — مهمة جداً:\n"
+            "  استخدم DATA_INSUFFICIENT فقط إذا كانت الحقول الجوهرية التالية كلها مفقودة:\n"
+            "  (الإيرادات + صافي الربح + إجمالي الأصول).\n"
+            "  إذا توفرت هذه الحقول الثلاثة مع السعر الحالي → لا تستخدم DATA_INSUFFICIENT أبداً.\n"
+            "  عند غياب بعض المقارنات أو YoY → استخدم NEUTRAL أو NEUTRAL_NEGATIVE بدلاً من DATA_INSUFFICIENT.\n"
+            "  غياب تصنيف delta أو تفسير السبب لا يبرر DATA_INSUFFICIENT إذا كانت الأرقام متاحة.\n\n"
             "الـ stance من هذه القيم فقط:\n"
             "  BULLISH / NEUTRAL_POSITIVE / NEUTRAL / NEUTRAL_NEGATIVE / BEARISH / DATA_INSUFFICIENT\n\n"
             "أنتج هذا JSON فقط — لا نص قبله أو بعده:\n"
@@ -305,8 +311,16 @@ class AnalysisWorker:
         )
 
     def _build_l4_prompt(self, raw: dict, l2: dict, l3: dict) -> str:
-        meta   = raw["meta"]
-        income = raw.get("financials", {}).get("income_statement", {})
+        meta     = raw["meta"]
+        income   = raw.get("financials", {}).get("income_statement", {})
+        balance  = raw.get("financials", {}).get("balance_sheet", {})
+        cashflow = raw.get("financials", {}).get("cash_flow", {})
+
+        def na(v) -> str:
+            """يحوّل None أو فراغ إلى 'غير محدد'."""
+            if v is None or v == "" or str(v).strip() in ("None", "null", ""):
+                return "غير محدد"
+            return str(v)
 
         def fmt(field_data: dict) -> str:
             if not field_data or field_data.get("value") is None:
@@ -315,11 +329,50 @@ class AnalysisWorker:
             yoy    = field_data.get("yoy_pct")
             status = field_data.get("status", "")
             note   = field_data.get("note")
-
             yoy_str  = f" ({yoy:+.1f}%)" if yoy is not None else ""
             tag      = " [تقدير]" if status == "estimated" else ""
             note_str = f" — {note}" if note else ""
             return f"{v:,.0f}{yoy_str}{tag}{note_str}"
+
+        def fmt_kpi(kpi_id: str) -> str:
+            for c in raw.get("kpi_cards", []):
+                if c.get("id") == kpi_id:
+                    v = c.get("value")
+                    return "غير متاح" if v is None else f"{v:,.2f}"
+            return "غير متاح"
+
+        # ── KPI cards ─────────────────────────────────────────────
+        current_price = fmt_kpi("current_price")
+        pe_ratio      = fmt_kpi("pe_ratio")
+        pb_ratio      = fmt_kpi("pb_ratio")
+
+        # ── analysts ──────────────────────────────────────────────
+        ac = raw.get("analyst_consensus") or {}
+        analysts_line = "غير متاح"
+        if isinstance(ac, dict) and ac.get("status") != "unavailable_by_plan":
+            consensus   = na(ac.get("consensus"))
+            score       = na(ac.get("consensus_score"))
+            num         = na(ac.get("num_analysts"))
+            t_mean      = na(ac.get("target_mean"))
+            t_high      = na(ac.get("target_high"))
+            t_low       = na(ac.get("target_low"))
+            analysts_line = (
+                f"التوصية: {consensus} | النقاط: {score} | عدد المحللين: {num} | "
+                f"متوسط السعر المستهدف: {t_mean} (أعلى: {t_high} / أدنى: {t_low})"
+            )
+
+        # ── valuation ─────────────────────────────────────────────
+        valuation_line = "غير متاح"
+        provenance = raw.get("provenance", {})
+        # valuation موجود في company عبر SahmAdapter — نستخرجه من kpi أو نتركه
+        # fair_price غير موجود في الـ schema الحالي مباشرة
+
+        # ── technicals ────────────────────────────────────────────
+        technicals_line = "غير متاح"
+        # technical_strength غير موجود مباشرة في raw — يأتي من company في adapter
+
+        # ── delta ─────────────────────────────────────────────────
+        will_persist_map = {True: "نعم", False: "لا", None: "غير محدد"}
 
         discontinued_line = ""
         if income.get("net_income_discontinued", {}).get("value") is not None:
@@ -339,28 +392,48 @@ class AnalysisWorker:
         ]
         missing_kpi_text = "، ".join(missing_kpi_labels) if missing_kpi_labels else "لا توجد"
 
-        will_persist_map = {True: "نعم", False: "لا", None: "غير محدد"}
-
         return (
             f"شركة: {meta['company_name']} ({meta['symbol']})\n"
             f"القطاع: {meta['sector']} | الفترة: {meta['period']}\n"
             f"تاريخ الإيداع: {meta['filing_date']} | الوحدة: {meta['unit']}\n\n"
-            "── البيانات المالية ──\n"
+
+            "── السعر والتقييم ──\n"
+            f"السعر الحالي:   {current_price} ريال\n"
+            f"P/E:            {pe_ratio}x\n"
+            f"P/B:            {pb_ratio}x\n\n"
+
+            "── قائمة الدخل ──\n"
             f"الإيرادات:           {fmt(income.get('revenue'))}\n"
             f"إجمالي الربح:        {fmt(income.get('gross_profit'))}\n"
             f"الربح التشغيلي:      {fmt(income.get('operating_income'))}\n"
             f"صافي ربح مستمر:      {fmt(income.get('net_income_continuing'))}"
             f"{discontinued_line}\n"
             f"صافي الربح الإجمالي: {fmt(income.get('net_income'))}\n\n"
+
+            "── الميزانية العمومية ──\n"
+            f"إجمالي الأصول:       {fmt(balance.get('total_assets'))}\n"
+            f"حقوق المساهمين:      {fmt(balance.get('total_equity'))}\n"
+            f"إجمالي الالتزامات:   {fmt(balance.get('total_liabilities'))}\n\n"
+
+            "── التدفقات النقدية ──\n"
+            f"التدفق التشغيلي:     {fmt(cashflow.get('ocf'))}\n"
+            f"التدفق الحر:         {fmt(cashflow.get('free_cash_flow'))}\n\n"
+
+            "── المحللون ──\n"
+            f"{analysts_line}\n\n"
+
             "── تصنيف Delta ──\n"
-            f"النوع:       {l3.get('type')} | الشدة: {l3.get('magnitude')}\n"
-            f"ما تغيّر:    {l3.get('what')}\n"
-            f"لماذا:       {l3.get('why')}\n"
+            f"النوع:       {na(l3.get('type'))} | الشدة: {na(l3.get('magnitude'))}\n"
+            f"ما تغيّر:    {na(l3.get('what'))}\n"
+            f"لماذا:       {na(l3.get('why'))}\n"
             f"هل يستمر:    {will_persist_map.get(l3.get('will_persist'), 'غير محدد')}\n\n"
+
             "── الحقول غير المتاحة (لا تستند إليها في التحليل) ──\n"
             f"{missing_kpi_text}\n\n"
+
             "── تحذيرات ──\n"
             f"{warnings_text}\n\n"
+
             "حلل هذه البيانات وأنتج الـ JSON المطلوب."
         )
 
