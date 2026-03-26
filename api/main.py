@@ -143,7 +143,7 @@ def trigger_analysis(symbol: str, token: str = ""):
         sym, period,
         meta.get("qa_status", "UNKNOWN"),
         l4.get("stance"),
-        json.dumps(report, ensure_ascii=False),
+        json.dumps(report, ensure_ascii=True),
         meta.get("worker_version"),
     ))
     conn.commit()
@@ -166,6 +166,11 @@ def trigger_analysis(symbol: str, token: str = ""):
     ac  = report.get("analyst_consensus") or {}
 
     pd = report.get("provenance", {}).get("period_debug") or {}
+
+    # ── warn debug: char codes قبل التخزين ────────────────────────────
+    _warns = report.get("data_quality", {}).get("warnings", [])
+    _w0msg = _warns[0].get("message", "") if _warns else ""
+    _w0_codes = [ord(c) for c in _w0msg[:8]] if _w0msg else []
 
     debug_fields = {
         # القيم الفعلية
@@ -199,6 +204,11 @@ def trigger_analysis(symbol: str, token: str = ""):
         "top_3_income_period_labels":   pd.get("top_3_income_period_labels"),
         "top_3_balance_period_labels":  pd.get("top_3_balance_period_labels"),
         "top_3_cashflow_period_labels": pd.get("top_3_cashflow_period_labels"),
+        # warn0 pre-storage debug
+        "warn0_count":   len(_warns),
+        "warn0_code":    _warns[0].get("code")    if _warns else None,
+        "warn0_msg_raw": _w0msg[:60],
+        "warn0_codes":   _w0_codes,
     }
 
     return {
