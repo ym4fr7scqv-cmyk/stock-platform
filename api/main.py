@@ -165,7 +165,10 @@ def trigger_analysis(symbol: str, token: str = ""):
     cf  = report.get("financials", {}).get("cash_flow", {})
     ac  = report.get("analyst_consensus") or {}
 
+    pd = report.get("provenance", {}).get("period_debug") or {}
+
     debug_fields = {
+        # القيم الفعلية
         "revenue":              _val(inc, "revenue"),
         "net_income":           _val(inc, "net_income"),
         "total_assets":         _val(bal, "total_assets"),
@@ -177,6 +180,25 @@ def trigger_analysis(symbol: str, token: str = ""):
         "pb_ratio":             _kpi_val("pb_ratio"),
         "consensus":            ac.get("consensus"),
         "num_analysts":         ac.get("num_analysts"),
+        # period selection debug
+        "inc_report_date_selected":     pd.get("inc_report_date_selected"),
+        "bal_report_date_selected":     pd.get("bal_report_date_selected"),
+        "cf_report_date_selected":      pd.get("cf_report_date_selected"),
+        "inc_statement_index_selected": pd.get("inc_statement_index_selected"),
+        "bal_statement_index_selected": pd.get("bal_statement_index_selected"),
+        "cf_statement_index_selected":  pd.get("cf_statement_index_selected"),
+        "inc_period_label_selected":    pd.get("inc_period_label_selected"),
+        "bal_period_label_selected":    pd.get("bal_period_label_selected"),
+        "cf_period_label_selected":     pd.get("cf_period_label_selected"),
+        "inc_matched":                  pd.get("inc_matched"),
+        "bal_matched":                  pd.get("bal_matched"),
+        "cf_matched":                   pd.get("cf_matched"),
+        "top_3_income_report_dates":    pd.get("top_3_income_report_dates"),
+        "top_3_balance_report_dates":   pd.get("top_3_balance_report_dates"),
+        "top_3_cashflow_report_dates":  pd.get("top_3_cashflow_report_dates"),
+        "top_3_income_period_labels":   pd.get("top_3_income_period_labels"),
+        "top_3_balance_period_labels":  pd.get("top_3_balance_period_labels"),
+        "top_3_cashflow_period_labels": pd.get("top_3_cashflow_period_labels"),
     }
 
     return {
