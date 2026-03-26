@@ -149,12 +149,44 @@ def trigger_analysis(symbol: str, token: str = ""):
     conn.commit()
     cur.close()
     conn.close()
+    # ── debug_fields: القيم الفعلية التي وصلت لـ Claude ──────────
+    def _val(section_dict, key):
+        field = section_dict.get(key) or {}
+        return field.get("value") if isinstance(field, dict) else None
+
+    def _kpi_val(kpi_id):
+        for c in report.get("kpi_cards", []):
+            if c.get("id") == kpi_id:
+                return c.get("value")
+        return None
+
+    inc = report.get("financials", {}).get("income_statement", {})
+    bal = report.get("financials", {}).get("balance_sheet", {})
+    cf  = report.get("financials", {}).get("cash_flow", {})
+    ac  = report.get("analyst_consensus") or {}
+
+    debug_fields = {
+        "revenue":              _val(inc, "revenue"),
+        "net_income":           _val(inc, "net_income"),
+        "total_assets":         _val(bal, "total_assets"),
+        "stockholders_equity":  _val(bal, "total_equity"),
+        "operating_cash_flow":  _val(cf,  "ocf"),
+        "free_cash_flow":       _val(cf,  "free_cash_flow"),
+        "current_price":        _kpi_val("current_price"),
+        "pe_ratio":             _kpi_val("pe_ratio"),
+        "pb_ratio":             _kpi_val("pb_ratio"),
+        "consensus":            ac.get("consensus"),
+        "num_analysts":         ac.get("num_analysts"),
+    }
+
     return {
-        "symbol":    sym,
-        "period":    period,
-        "qa_status": meta.get("qa_status"),
-        "stance":    l4.get("stance"),
-        "error":     report.get("error"),
+        "symbol":        sym,
+        "period":        period,
+        "qa_status":     meta.get("qa_status"),
+        "stance":        l4.get("stance"),
+        "analysis_text": l4.get("analysis_text"),
+        "debug_fields":  debug_fields,
+        "error":         report.get("error"),
     }
 
 
