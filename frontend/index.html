@@ -364,7 +364,9 @@ function renderReport(r) {
            ${card.yoy_pct >= 0 ? '▲' : '▼'} ${Math.abs(card.yoy_pct).toFixed(1)}%
          </div>`
       : '';
-    const statusTag = isMissing ? '' : `<span class="kpi-status-tag">${statusLabel(card.status)}</span>`;
+    const statusTag = isMissing
+      ? `<span class="kpi-status-tag" style="color:#b08000;background:#fffbea">بيانات أساسية مفقودة</span>`
+      : `<span class="kpi-status-tag">${statusLabel(card.status)}</span>`;
     return `
       <div class="kpi-card ${card.status}">
         <div class="kpi-label">${card.label}</div>
