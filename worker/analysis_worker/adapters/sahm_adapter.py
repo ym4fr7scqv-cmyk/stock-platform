@@ -499,24 +499,30 @@ class SahmAdapter:
             inc_b = _pick_prior(inc_records, period)
             bal_b = _pick_prior(bal_records, period)
 
+        def _safe_label(d):
+            """Fix 4: guard IndexError when index > len(all_period_labels)."""
+            labels = d.get("all_period_labels") or []
+            idx    = d.get("index", -1)
+            return labels[idx] if 0 <= idx < len(labels) else None
+
         _period_debug = {
             "inc_report_date_selected":    _inc_d["report_date"],
             "inc_statement_index_selected":_inc_d["index"],
-            "inc_period_label_selected":   _inc_d.get("all_period_labels", [None])[_inc_d["index"]] if _inc_d["index"] >= 0 and _inc_d.get("all_period_labels") else None,
+            "inc_period_label_selected":   _safe_label(_inc_d),
             "inc_matched":                 _inc_d["matched"],
             "top_3_income_report_dates":   _inc_d["all_dates"],
             "top_3_income_period_labels":  _inc_d["all_period_labels"],
 
             "bal_report_date_selected":    _bal_d["report_date"],
             "bal_statement_index_selected":_bal_d["index"],
-            "bal_period_label_selected":   _bal_d.get("all_period_labels", [None])[_bal_d["index"]] if _bal_d["index"] >= 0 and _bal_d.get("all_period_labels") else None,
+            "bal_period_label_selected":   _safe_label(_bal_d),
             "bal_matched":                 _bal_d["matched"],
             "top_3_balance_report_dates":  _bal_d["all_dates"],
             "top_3_balance_period_labels": _bal_d["all_period_labels"],
 
             "cf_report_date_selected":     _cf_d["report_date"],
             "cf_statement_index_selected": _cf_d["index"],
-            "cf_period_label_selected":    _cf_d.get("all_period_labels", [None])[_cf_d["index"]] if _cf_d["index"] >= 0 and _cf_d.get("all_period_labels") else None,
+            "cf_period_label_selected":    _safe_label(_cf_d),
             "cf_matched":                  _cf_d["matched"],
             "top_3_cashflow_report_dates": _cf_d["all_dates"],
             "top_3_cashflow_period_labels":_cf_d["all_period_labels"],
@@ -714,21 +720,4 @@ class SahmAdapter:
             raise SahmAPIError("UNEXPECTED_ERROR", f"{endpoint}: {exc_type}: {str(exc)[:100]}")
         return {}
 
-    # ── Utilities ─────────────────────────────────────────────────
-
-    @staticmethod
-    def _guess_sector_type(sector: str) -> str:
-        s = (sector or "").lower()
-        if any(w in s for w in ["بنك", "مصرف", "bank", "banking"]):
-            return "banking"
-        if any(w in s for w in ["تأمين", "insurance"]):
-            return "insurance"
-        return "standard"
-
-    @staticmethod
-    def _prior_period(period: str) -> str:
-        try:
-            year = int(period.replace("FY", "").strip())
-            return f"FY{year - 1}"
-        except (ValueError, AttributeError):
-            return ""
+    # ── 
