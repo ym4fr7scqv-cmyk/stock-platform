@@ -274,7 +274,7 @@
 
 <!-- Header -->
 <div class="header">
-  <div class="header-brand">منصة <span>تحليل</span> الأسهم السعودية</div>
+  <div class="header-brand">مقصة <span>تحليل</span> الأسهم السعودية</div>
   <div class="stock-selector">
     <label>اختر السهم</label>
     <select id="stockSelect" onchange="loadStock(this.value)">
@@ -288,7 +288,7 @@
   <div id="content">
     <div class="state-card">
       <div class="spinner"></div>
-      جاري تحميل البيانات...
+      جاري تحميل البيان��ت...
     </div>
   </div>
 </div>
@@ -311,7 +311,7 @@ async function loadStocks() {
     });
     if (list.length > 0) loadStock(list[0].symbol);
   } catch(e) {
-    showError('تعذّر تحميل قائمة الأسهم');
+    showError('تعذّر تحميل فائمة الأسهم');
   }
 }
 
@@ -335,7 +335,7 @@ async function loadStock(symbol) {
   }
 }
 
-// ── عرض الخطأ ─────────────────────────────────────────────────────
+// ── عرض الخط٣ ─────────────────────────────────────────────────────
 function showError(msg) {
   document.getElementById('content').innerHTML =
     `<div class="state-card error">⚠️ ${msg}</div>`;
@@ -365,7 +365,7 @@ function renderReport(r) {
          </div>`
       : '';
     const statusTag = isMissing
-      ? `<span class="kpi-status-tag" style="color:#b08000;background:#fffbea">بيانات أساسية مفقودة</span>`
+      ? `<span class="kpi-status-tag" style="color:#b08000;background:#fffbea">بىانا֪ أساسية مفقودة</span>`
       : `<span class="kpi-status-tag">${statusLabel(card.status)}</span>`;
     return `
       <div class="kpi-card ${card.status}">
@@ -415,7 +415,7 @@ function renderReport(r) {
           ${meta.sector || ''} &nbsp;|&nbsp;
           الفترة: ${meta.period || ''} &nbsp;|&nbsp;
           الوحدة: ${meta.unit || ''} &nbsp;|&nbsp;
-          تاريخ الإيداع: ${meta.filing_date || '—'}
+          ةاريخ الميداع: ${meta.filing_date || '—'}
         </div>
         <div class="company-meta" style="margin-top:6px">
           Delta: <strong style="color:#4fa3e0">${deltaType}</strong>
@@ -440,12 +440,12 @@ function renderReport(r) {
     <!-- Signals & Risks -->
     <div class="signals-risks">
       <div class="signals-card">
-        <div class="section-title">الإشارات</div>
+        <div class="section-title">الإشارا֪</div>
         ${signalsHTML || '<div style="color:#aaa;font-size:.9rem">لا إشارات</div>'}
       </div>
       <div class="risks-card">
-        <div class="section-title">المخاطر</div>
-        ${risksHTML || '<div style="color:#aaa;font-size:.9rem">لا مخاطر</div>'}
+        <div class="section-title">المخ��طر</div>
+        ${risksHTML || '<div style="color:#aaa;font-size:.9rem">لا مخ��طر</div>'}
       </div>
     </div>
 
@@ -475,7 +475,7 @@ function renderReport(r) {
 
     <!-- Disclaimer -->
     <div class="disclaimer">
-      ليست توصية شراء أو بيع — للأغراض المعلوماتية فقط
+      ليسي توصية شراء أو بيع — للأغراض المعلوماتية فقط
     </div>
   `;
 }
