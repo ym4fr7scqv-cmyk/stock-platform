@@ -197,7 +197,7 @@ def trigger_analysis(symbol: str, token: str = "", period: str = ""):
         "num_analysts":         ac.get("num_analysts"),
         # period integrity
         "period_integrity":              pi_status,
-        "requested_period_found":        report.get("requested_period_found"),
+        "requested_period_found":        prov.get("requested_period_found"),
         "period_integrity_suggestion":   pi_detail.get("suggestion"),
         "quarterly_synthesis_possible":  pi_detail.get("quarterly_synthesis_possible"),
         "data_quality_warnings":         dq_warnings,
