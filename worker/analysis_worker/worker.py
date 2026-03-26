@@ -11,6 +11,7 @@ Phase 1 قيود:
   - pre-generated فقط — لا on-demand
 """
 
+import os
 import json
 import re
 import uuid
@@ -101,10 +102,11 @@ class SeedAdapter:
         )
         age_days = (datetime.date.today() - filing_date).days
 
-        if age_days > self.MAX_FILING_AGE_DAYS:
+        max_age = int(os.environ.get("MAX_FILING_AGE_DAYS", str(self.MAX_FILING_AGE_DAYS)))
+        if age_days > max_age:
             raise SourceRecencyFailure(
                 f"SOURCE_RECENCY_FAILURE: تاريخ الإيداع {filing_date} "
-                f"عمره {age_days} يوماً — يتجاوز الحد ({self.MAX_FILING_AGE_DAYS} يوم)"
+                f"عمره {age_days} يوماً — يتجاوز الحد ({max_age} يوم)"
             )
 
         return data
