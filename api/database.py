@@ -53,6 +53,11 @@ def init_db():
 ON CONFLICT (symbol) DO UPDATE SET
     company_name = EXCLUDED.company_name,
     sector       = EXCLUDED.sector;
+""")
+
+conn.commit()
+cur.close()
+conn.close()
 
     conn.commit()
     cur.close()
