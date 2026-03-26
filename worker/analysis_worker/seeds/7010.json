@@ -1,0 +1,213 @@
+{
+  "symbol": "7010",
+  "period": "FY2025",
+
+  "meta": {
+    "symbol":        "7010",
+    "company_name":  "شركة الاتصالات السعودية",
+    "sector":        "اتصالات",
+    "sector_type":   "standard",
+    "period":        "FY2025",
+    "period_type":   "annual",
+    "filing_date":   "2026-02-24",
+    "filing_type":   "annual_pdf",
+    "source_id":     "480_0_2026-02-23",
+    "source_url":    "https://www.saudiexchange.sa/",
+    "unit":          "ألف ريال سعودي",
+    "unit_code":     "SAR_THOUSANDS",
+    "base_period":   "FY2024"
+  },
+
+  "kpi_cards": [
+    {
+      "id":      "current_price",
+      "label":   "السعر الحالي",
+      "value":   null,
+      "unit":    "ريال",
+      "yoy_pct": null,
+      "status":  "missing",
+      "source":  null,
+      "as_of":   null
+    },
+    {
+      "id":      "pe_ratio",
+      "label":   "P/E",
+      "value":   null,
+      "unit":    "x",
+      "yoy_pct": null,
+      "status":  "missing",
+      "source":  null,
+      "as_of":   null
+    },
+    {
+      "id":      "pb_ratio",
+      "label":   "P/B",
+      "value":   null,
+      "unit":    "x",
+      "yoy_pct": null,
+      "status":  "missing",
+      "source":  null,
+      "as_of":   null
+    },
+    {
+      "id":      "revenue_growth",
+      "label":   "نمو الإيرادات",
+      "value":   2.5,
+      "unit":    "%",
+      "yoy_pct": 2.5,
+      "status":  "confirmed",
+      "source":  "PDF 480_0_2026-02-23 — page 8",
+      "as_of":   null
+    },
+    {
+      "id":      "net_margin",
+      "label":   "هامش الربح الصافي",
+      "value":   13.0,
+      "unit":    "%",
+      "yoy_pct": null,
+      "status":  "calculated",
+      "source":  "10,134,945 / 77,818,765",
+      "as_of":   null
+    },
+    {
+      "id":      "ev_ebitda",
+      "label":   "EV/EBITDA",
+      "value":   null,
+      "unit":    "x",
+      "yoy_pct": null,
+      "status":  "missing",
+      "source":  null,
+      "as_of":   null
+    }
+  ],
+
+  "financials": {
+    "income_statement": {
+      "revenue": {
+        "value":   77818765,
+        "base":    75893613,
+        "yoy_pct": 2.5,
+        "status":  "confirmed",
+        "note":    null
+      },
+      "gross_profit": {
+        "value":   37699779,
+        "base":    37826924,
+        "yoy_pct": -0.3,
+        "status":  "confirmed",
+        "note":    null
+      },
+      "operating_income": {
+        "value":   14438264,
+        "base":    14425638,
+        "yoy_pct": 0.1,
+        "status":  "confirmed",
+        "note":    null
+      },
+      "net_income_continuing": {
+        "value":   10189078,
+        "base":    10942883,
+        "yoy_pct": -6.9,
+        "status":  "confirmed",
+        "note":    null
+      },
+      "net_income_discontinued": {
+        "value":   -54133,
+        "base":    13973360,
+        "yoy_pct": null,
+        "status":  "confirmed",
+        "note":    "ONE-OFF ضخم في 2024 — مكاسب بيع أصول"
+      },
+      "net_income": {
+        "value":   10134945,
+        "base":    24916243,
+        "yoy_pct": -59.4,
+        "status":  "confirmed",
+        "note":    null
+      },
+      "eps": {
+        "value":   null,
+        "base":    null,
+        "yoy_pct": null,
+        "status":  "missing",
+        "note":    null
+      }
+    },
+    "balance_sheet": {
+      "total_assets": {
+        "value":   157493673,
+        "base":    160638143,
+        "yoy_pct": -2.0,
+        "status":  "confirmed",
+        "note":    "يحتاج تأكيد XBRL كامل"
+      },
+      "total_equity": {
+        "value":   null,
+        "base":    null,
+        "yoy_pct": null,
+        "status":  "missing",
+        "note":    null
+      },
+      "total_liabilities": {
+        "value":   null,
+        "base":    null,
+        "yoy_pct": null,
+        "status":  "missing",
+        "note":    null
+      }
+    },
+    "cash_flow": {
+      "ocf": {
+        "value":   null,
+        "base":    null,
+        "yoy_pct": null,
+        "status":  "missing",
+        "note":    null
+      },
+      "capex": {
+        "value":   null,
+        "base":    null,
+        "yoy_pct": null,
+        "status":  "missing",
+        "note":    null
+      }
+    }
+  },
+
+  "delta": {
+    "type":         "ONE-OFF",
+    "what":         "صافي الربح الإجمالي انخفض -59.4%",
+    "why":          "تطبيع بعد مكاسب ONE-OFF ضخمة في 2024 (بيع أصول ~14B). التشغيل الجوهري مستقر: إيرادات +2.5%، ربح تشغيلي +0.1%.",
+    "will_persist": false,
+    "confidence":   "high"
+  },
+
+  "data_quality": {
+    "warnings": [
+      {
+        "code":    "DATA_COMPLETENESS_WARNING",
+        "field":   "balance_sheet",
+        "message": "الميزانية مؤكدة جزئياً — total_equity و total_liabilities تحتاج XBRL"
+      }
+    ]
+  },
+
+  "provenance": {
+    "primary_source":   "480_0_2026-02-23_15-07-38_Ar.pdf",
+    "source_type":      "annual_pdf",
+    "fallback_used":    false,
+    "pages_referenced": ["8", "9", "10"],
+    "fields_source_map": {
+      "revenue":                   "page 8",
+      "gross_profit":              "page 8",
+      "operating_income":          "page 8",
+      "net_income_continuing":     "page 8",
+      "net_income_discontinued":   "page 9",
+      "net_income":                "page 9",
+      "total_assets":              "page 10"
+    },
+    "verification_notes": [
+      "10,189,078 - 54,133 = 10,134,945 ✓"
+    ]
+  }
+}

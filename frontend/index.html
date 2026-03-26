@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تحليل الأسهم السعودية</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: #0a1628;
+    color: #fff;
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  }
+  .header-brand { font-size: 1.3rem; font-weight: 700; letter-spacing: 0.5px; }
+  .header-brand span { color: #4fa3e0; }
+
+  .stock-selector {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .stock-selector label { font-size: 0.9rem; color: #aab; }
+  .stock-selector select {
+    background: #1a2a45;
+    color: #fff;
+    border: 1px solid #2a4a6a;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 1rem;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    min-width: 200px;
+    text-align: right;
+  }
+
+  /* ── Main ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 28px 20px; }
+
+  /* ── Loading / Error ── */
+  .state-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 60px;
+    text-align: center;
+    color: #888;
+    font-size: 1.1rem;
+    margin-top: 40px;
+  }
+  .state-card.error { color: #c0392b; }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 4px solid #e0e0e0;
+    border-top-color: #4fa3e0;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Company Header ── */
+  .company-header {
+    background: #0a1628;
+    border-radius: 14px;
+    padding: 24px 28px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .company-name { font-size: 1.5rem; font-weight: 700; }
+  .company-meta { font-size: 0.85rem; color: #7a9fc0; margin-top: 4px; }
+
+  .stance-badge {
+    padding: 10px 20px;
+    border-radius: 50px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  .stance-BULLISH           { background: #1a5c2e; color: #4cde80; }
+  .stance-NEUTRAL_POSITIVE  { background: #1a4a2e; color: #7ee8a2; }
+  .stance-NEUTRAL           { background: #2a3a5a; color: #90b8e0; }
+  .stance-NEUTRAL_NEGATIVE  { background: #4a2a1a; color: #f0a070; }
+  .stance-BEARISH           { background: #5a1a1a; color: #f07070; }
+  .stance-DATA_INSUFFICIENT { background: #2a2a3a; color: #aaa; }
+
+  /* ── KPI Cards ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 700px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+  .kpi-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+    border-right: 4px solid #0a1628;
+  }
+  .kpi-card.missing { border-right-color: #ddd; opacity: 0.65; }
+  .kpi-card.calculated { border-right-color: #4fa3e0; }
+  .kpi-card.confirmed  { border-right-color: #27ae60; }
+  .kpi-card.estimated  { border-right-color: #f39c12; }
+
+  .kpi-label { font-size: 0.78rem; color: #888; margin-bottom: 6px; }
+  .kpi-value { font-size: 1.5rem; font-weight: 700; color: #0a1628; }
+  .kpi-value.missing { color: #ccc; font-size: 1.1rem; }
+  .kpi-yoy  { font-size: 0.8rem; margin-top: 4px; }
+  .kpi-yoy.pos { color: #27ae60; }
+  .kpi-yoy.neg { color: #c0392b; }
+  .kpi-status-tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    padding: 2px 7px;
+    border-radius: 20px;
+    margin-top: 6px;
+    background: #f0f4f8;
+    color: #666;
+  }
+
+  /* ── Analysis Text ── */
+  .analysis-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+    line-height: 1.85;
+    font-size: 1rem;
+    color: #2c3e50;
+  }
+  .section-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #7a9fc0;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 8px;
+  }
+
+  /* ── Signals & Risks ── */
+  .signals-risks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 680px) { .signals-risks { grid-template-columns: 1fr; } }
+
+  .signals-card, .risks-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 22px 24px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+  }
+
+  .signal-item, .risk-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  .signal-item:last-child, .risk-item:last-child { border-bottom: none; }
+
+  .signal-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+  .dot-positive { background: #27ae60; }
+  .dot-negative { background: #c0392b; }
+  .dot-neutral  { background: #95a5a6; }
+
+  .risk-sev {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .sev-high   { background: #fde8e8; color: #c0392b; }
+  .sev-medium { background: #fef3e2; color: #d35400; }
+  .sev-low    { background: #eafaf1; color: #1e8449; }
+
+  /* ── Data Quality ── */
+  .dq-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+  }
+  .dq-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 600px) { .dq-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .dq-item { text-align: center; }
+  .dq-count {
+    font-size: 1.6rem;
+    font-weight: 700;
+    display: block;
+  }
+  .dq-label-sm { font-size: 0.75rem; color: #888; }
+  .dq-confirmed  .dq-count { color: #27ae60; }
+  .dq-calculated .dq-count { color: #2980b9; }
+  .dq-estimated  .dq-count { color: #d35400; }
+  .dq-missing    .dq-count { color: #bbb; }
+
+  .warning-item {
+    background: #fffbf0;
+    border: 1px solid #f0d080;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    color: #7a5a00;
+    margin-bottom: 6px;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    font-size: 0.78rem;
+    color: #aaa;
+    padding: 24px;
+    margin-top: 10px;
+  }
+  .disclaimer {
+    background: #0a1628;
+    color: #4a6a8a;
+    text-align: center;
+    padding: 14px;
+    font-size: 0.8rem;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-brand">منصة <span>تحليل</span> الأسهم السعودية</div>
+  <div class="stock-selector">
+    <label>اختر السهم</label>
+    <select id="stockSelect" onchange="loadStock(this.value)">
+      <option value="">جاري التحميل...</option>
+    </select>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="container">
+  <div id="content">
+    <div class="state-card">
+      <div class="spinner"></div>
+      جاري تحميل البيانات...
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';  // same origin
+
+// ── تحميل قائمة الأسهم ──────────────────────────────────────────
+async function loadStocks() {
+  try {
+    const res  = await fetch(`${API}/api/stocks`);
+    const list = await res.json();
+    const sel  = document.getElementById('stockSelect');
+    sel.innerHTML = '';
+    list.forEach(s => {
+      const opt       = document.createElement('option');
+      opt.value       = s.symbol;
+      opt.textContent = `${s.company_name} (${s.symbol})`;
+      sel.appendChild(opt);
+    });
+    if (list.length > 0) loadStock(list[0].symbol);
+  } catch(e) {
+    showError('تعذّر تحميل قائمة الأسهم');
+  }
+}
+
+// ── تحميل تقرير سهم ──────────────────────────────────────────────
+async function loadStock(symbol) {
+  if (!symbol) return;
+  document.getElementById('content').innerHTML = `
+    <div class="state-card"><div class="spinner"></div>جاري التحليل...</div>`;
+
+  try {
+    const res = await fetch(`${API}/api/reports/${symbol}`);
+    if (res.status === 404) {
+      const err = await res.json();
+      showError(err.detail || 'لا يوجد تقرير بعد — جاري التحليل');
+      return;
+    }
+    const report = await res.json();
+    renderReport(report);
+  } catch(e) {
+    showError('تعذّر الاتصال بالخادم');
+  }
+}
+
+// ── عرض الخطأ ─────────────────────────────────────────────────────
+function showError(msg) {
+  document.getElementById('content').innerHTML =
+    `<div class="state-card error">⚠️ ${msg}</div>`;
+}
+
+// ── عرض التقرير ───────────────────────────────────────────────────
+function renderReport(r) {
+  const meta  = r.meta  || {};
+  const l4    = r.l4_output || {};
+  const dq    = r.data_quality || {};
+  const delta = r.delta || {};
+
+  // تاريخ التقرير
+  const genAt = r._fetched_at
+    ? new Date(r._fetched_at).toLocaleDateString('ar-SA', {year:'numeric',month:'long',day:'numeric'})
+    : '—';
+
+  // ── KPI Cards ──────────────────────────────────────────────────
+  const kpiHTML = (r.kpi_cards || []).map(card => {
+    const isMissing = card.status === 'missing';
+    const valueStr  = isMissing
+      ? '—'
+      : `${formatNum(card.value)} ${card.unit || ''}`;
+    const yoyHTML   = (!isMissing && card.yoy_pct != null)
+      ? `<div class="kpi-yoy ${card.yoy_pct >= 0 ? 'pos' : 'neg'}">
+           ${card.yoy_pct >= 0 ? '▲' : '▼'} ${Math.abs(card.yoy_pct).toFixed(1)}%
+         </div>`
+      : '';
+    const statusTag = isMissing ? '' : `<span class="kpi-status-tag">${statusLabel(card.status)}</span>`;
+    return `
+      <div class="kpi-card ${card.status}">
+        <div class="kpi-label">${card.label}</div>
+        <div class="kpi-value ${isMissing ? 'missing' : ''}">${valueStr}</div>
+        ${yoyHTML}
+        ${statusTag}
+      </div>`;
+  }).join('');
+
+  // ── Signals ────────────────────────────────────────────────────
+  const signalsHTML = (l4.signals || []).map(s => `
+    <div class="signal-item">
+      <div class="signal-dot dot-${s.type}"></div>
+      <div>${s.text}</div>
+    </div>`).join('');
+
+  // ── Risks ──────────────────────────────────────────────────────
+  const risksHTML = (l4.risks || []).map(r => `
+    <div class="risk-item">
+      <div class="risk-sev sev-${r.severity}">${sevLabel(r.severity)}</div>
+      <div>${r.text}</div>
+    </div>`).join('');
+
+  // ── Data Quality ───────────────────────────────────────────────
+  const conf = dq.confirmed_fields  || [];
+  const calc = dq.calculated_fields || [];
+  const est  = dq.estimated_fields  || [];
+  const miss = dq.missing_fields    || [];
+
+  const warningsHTML = (dq.warnings || []).map(w =>
+    `<div class="warning-item">⚠️ ${w.message}</div>`
+  ).join('');
+
+  // ── Delta badge ────────────────────────────────────────────────
+  const deltaType = delta.type || '—';
+  const deltaMag  = delta.magnitude || '—';
+
+  // ── Render ─────────────────────────────────────────────────────
+  document.getElementById('content').innerHTML = `
+
+    <!-- Company Header -->
+    <div class="company-header">
+      <div>
+        <div class="company-name">${meta.company_name || meta.symbol}</div>
+        <div class="company-meta">
+          ${meta.sector || ''} &nbsp;|&nbsp;
+          الفترة: ${meta.period || ''} &nbsp;|&nbsp;
+          الوحدة: ${meta.unit || ''} &nbsp;|&nbsp;
+          تاريخ الإيداع: ${meta.filing_date || '—'}
+        </div>
+        <div class="company-meta" style="margin-top:6px">
+          Delta: <strong style="color:#4fa3e0">${deltaType}</strong>
+          &nbsp;|&nbsp; الشدة: <strong style="color:#4fa3e0">${deltaMag}</strong>
+          &nbsp;|&nbsp; آخر تحليل: ${genAt}
+        </div>
+      </div>
+      <div class="stance-badge stance-${l4.stance || 'NEUTRAL'}">
+        ${l4.stance_label || l4.stance || '—'}
+      </div>
+    </div>
+
+    <!-- KPI Cards 3×2 -->
+    <div class="kpi-grid">${kpiHTML}</div>
+
+    <!-- Analysis Text -->
+    <div class="analysis-card">
+      <div class="section-title">التحليل</div>
+      ${l4.analysis_text || '—'}
+    </div>
+
+    <!-- Signals & Risks -->
+    <div class="signals-risks">
+      <div class="signals-card">
+        <div class="section-title">الإشارات</div>
+        ${signalsHTML || '<div style="color:#aaa;font-size:.9rem">لا إشارات</div>'}
+      </div>
+      <div class="risks-card">
+        <div class="section-title">المخاطر</div>
+        ${risksHTML || '<div style="color:#aaa;font-size:.9rem">لا مخاطر</div>'}
+      </div>
+    </div>
+
+    <!-- Data Quality -->
+    <div class="dq-card">
+      <div class="section-title">جودة البيانات — ${meta.qa_status || '—'}</div>
+      <div class="dq-grid">
+        <div class="dq-item dq-confirmed">
+          <span class="dq-count">${conf.length}</span>
+          <span class="dq-label-sm">مؤكد</span>
+        </div>
+        <div class="dq-item dq-calculated">
+          <span class="dq-count">${calc.length}</span>
+          <span class="dq-label-sm">محسوب</span>
+        </div>
+        <div class="dq-item dq-estimated">
+          <span class="dq-count">${est.length}</span>
+          <span class="dq-label-sm">تقدير</span>
+        </div>
+        <div class="dq-item dq-missing">
+          <span class="dq-count">${miss.length}</span>
+          <span class="dq-label-sm">مفقود</span>
+        </div>
+      </div>
+      ${warningsHTML}
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+      ليست توصية شراء أو بيع — للأغراض المعلوماتية فقط
+    </div>
+  `;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function formatNum(v) {
+  if (v == null) return '—';
+  if (Math.abs(v) >= 1e9) return (v/1e9).toFixed(2) + 'B';
+  if (Math.abs(v) >= 1e6) return (v/1e6).toFixed(1) + 'M';
+  return Number(v).toLocaleString('ar-SA', {maximumFractionDigits: 2});
+}
+
+function statusLabel(s) {
+  return {confirmed:'مؤكد', calculated:'محسوب', estimated:'تقدير', missing:'مفقود', live:'حي'}[s] || s;
+}
+
+function sevLabel(s) {
+  return {high:'عالي', medium:'متوسط', low:'منخفض'}[s] || s;
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+loadStocks();
+</script>
+</body>
+</html>
