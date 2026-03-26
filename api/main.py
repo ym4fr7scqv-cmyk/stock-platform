@@ -4,26 +4,38 @@ endpoints:
   GET /api/reports/{symbol}        → آخر تقرير ناجح للسهم
   GET /api/stocks                  → قائمة الأسهم النشطة
   GET /health                      → health check
-  GET /admin/trigger/{symbol}      → تشغيل يدوي للتحليل
+  GET /admin/trigger/{symbol}      → تشغيل يدوي محمي بـ token
   GET /                            → frontend (stock.html)
 """
 
 import os
+import sys
+import json
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from .database import get_conn, init_db
-from worker.analysis_worker.worker import AnalysisWorker
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "worker"))
+from analysis_worker.worker import AnalysisWorker
 
 app = FastAPI(title="منصة تحليل الأسهم السعودية", version="1.0")
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
+PERIOD_MAP = {
+    "7010": "FY2025",
+    "1120": "FY2024",
+    "2222": "FY2024",
+    "2010": "FY2024",
+    "1180": "FY2024",
+    "5110": "FY2024",
+}
+
 
 @app.on_event("startup")
 def startup():
-    """تهيئة قاعدة البيانات عند أول تشغيل."""
     try:
         init_db()
         print("[DB] Schema initialized")
@@ -31,37 +43,26 @@ def startup():
         print(f"[DB] Init warning: {e}")
 
 
-# ── API Endpoints ──────────────────────────────────────────────────
-
 @app.get("/api/reports/{symbol}")
 def get_report(symbol: str):
-    """
-    يُرجع آخر تقرير ناجح للسهم.
-    - إذا لا يوجد تقرير: 404
-    - إذا آخر تقرير فاشل: يُرجع آخر نسخة ناجحة فقط
-    """
     conn = get_conn()
-    cur = conn.cursor()
-
+    cur  = conn.cursor()
     cur.execute("""
         SELECT report_json, generated_at
-        FROM reports
-        WHERE symbol = %s
-          AND report_json->>'error' IS NULL
-          AND qa_status != 'FAIL'
+        FROM   reports
+        WHERE  symbol = %s
+          AND  report_json->>'error' IS NULL
+          AND  qa_status != 'FAIL'
         ORDER BY generated_at DESC
         LIMIT 1
     """, (symbol.upper(),))
-
     row = cur.fetchone()
     conn.close()
-
     if not row:
         raise HTTPException(
             status_code=404,
             detail=f"لا يوجد تقرير ناجح للرمز {symbol} — جاري التحليل"
         )
-
     report, generated_at = row
     report["_fetched_at"] = generated_at.isoformat() if generated_at else None
     return report
@@ -69,42 +70,34 @@ def get_report(symbol: str):
 
 @app.get("/api/stocks")
 def get_stocks():
-    """قائمة الأسهم النشطة مع حالة آخر تقرير."""
     conn = get_conn()
-    cur = conn.cursor()
-
+    cur  = conn.cursor()
     cur.execute("""
         SELECT
-            s.symbol,
-            s.company_name,
-            s.sector,
-            r.qa_status,
-            r.stance,
-            r.generated_at
+            s.symbol, s.company_name, s.sector,
+            r.qa_status, r.stance, r.generated_at
         FROM stocks s
         LEFT JOIN LATERAL (
             SELECT qa_status, stance, generated_at
-            FROM reports
-            WHERE symbol = s.symbol
-              AND report_json->>'error' IS NULL
+            FROM   reports
+            WHERE  symbol = s.symbol
+              AND  report_json->>'error' IS NULL
             ORDER BY generated_at DESC
             LIMIT 1
         ) r ON true
         WHERE s.is_active = true
         ORDER BY s.symbol
     """)
-
     rows = cur.fetchall()
     conn.close()
-
     return [
         {
-            "symbol": r[0],
+            "symbol":       r[0],
             "company_name": r[1],
-            "sector": r[2],
-            "qa_status": r[3],
-            "stance": r[4],
-            "last_report": r[5].isoformat() if r[5] else None,
+            "sector":       r[2],
+            "qa_status":    r[3],
+            "stance":       r[4],
+            "last_report":  r[5].isoformat() if r[5] else None,
         }
         for r in rows
     ]
@@ -112,7 +105,6 @@ def get_stocks():
 
 @app.get("/health")
 def health():
-    """Railway health check."""
     try:
         conn = get_conn()
         conn.close()
@@ -122,25 +114,49 @@ def health():
 
 
 @app.get("/admin/trigger/{symbol}")
-def manual_trigger(symbol: str, token: str = Query(...)):
-    """
-    تشغيل يدوي للتحليل من المتصفح.
-    يتطلب MANUAL_TRIGGER_TOKEN في Railway Variables.
-    """
-    expected = os.environ.get("MANUAL_TRIGGER_TOKEN")
+def trigger_analysis(symbol: str, token: str = ""):
+    expected = os.environ.get("MANUAL_TRIGGER_TOKEN", "")
     if not expected or token != expected:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not set")
+    sym    = symbol.upper()
+    period = PERIOD_MAP.get(sym, "FY2024")
+    worker = AnalysisWorker(anthropic_api_key=api_key)
+    report = worker.run(sym, period, triggered_by="MANUAL")
+    meta = report.get("meta", {})
+    l4   = report.get("l4_output") or {}
+    conn = get_conn()
+    cur  = conn.cursor()
+    cur.execute("""
+        INSERT INTO reports
+            (symbol, period, generated_at, qa_status, stance, report_json, worker_version)
+        VALUES (%s, %s, NOW(), %s, %s, %s::jsonb, %s)
+        ON CONFLICT (symbol, period) DO UPDATE SET
+            generated_at   = NOW(),
+            qa_status      = EXCLUDED.qa_status,
+            stance         = EXCLUDED.stance,
+            report_json    = EXCLUDED.report_json,
+            worker_version = EXCLUDED.worker_version
+    """, (
+        sym, period,
+        meta.get("qa_status", "UNKNOWN"),
+        l4.get("stance"),
+        json.dumps(report, ensure_ascii=False),
+        meta.get("worker_version"),
+    ))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {
+        "symbol":    sym,
+        "period":    period,
+        "qa_status": meta.get("qa_status"),
+        "stance":    l4.get("stance"),
+        "error":     report.get("error"),
+    }
 
-    symbol = symbol.upper()
 
-    try:
-        worker = AnalysisWorker(symbol=symbol, period="FY2024")
-        result = worker.run()
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ── Frontend ───────────────────────────────────────────────────────
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
