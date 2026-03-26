@@ -1,14 +1,13 @@
 """
-AnalysisWorker — Phase 1
+AnalysisWorker — Phase 2
 منصة تحليل الأسهم السعودية
 
 Pipeline: L1 (Source) → L2 (Multi-Period) → L3 (Delta) → L4 (Claude)
 Output:   report_json v1.1 — contract موثَّق في report_json_schema.md
 
-Phase 1 قيود:
-  - data_source = "seed"  (JSON محلي — لا سهمك API)
-  - recommendation = null دائماً
-  - pre-generated فقط — لا on-demand
+Phase 2:
+  - إذا SAHM_API_KEY موجود → SahmAdapter (بيانات حية)
+  - وإلا → SeedAdapter (JSON محلي — Phase 1 fallback)
 """
 
 import os
@@ -119,8 +118,12 @@ class SeedAdapter:
 class AnalysisWorker:
 
     def __init__(self, anthropic_api_key: str, data_source: str = "seed"):
-        self.client  = anthropic.Anthropic(api_key=anthropic_api_key)
-        self.adapter = SeedAdapter()  # Phase 2: SahmAdapter()
+        self.client = anthropic.Anthropic(api_key=anthropic_api_key)
+        if os.environ.get("SAHM_API_KEY"):
+            from analysis_worker.adapters.sahm_adapter import SahmAdapter
+            self.adapter = SahmAdapter(api_key=os.environ["SAHM_API_KEY"])
+        else:
+            self.adapter = SeedAdapter()  # Phase 1 fallback
 
     # ── Main Entry Point ───────────────────────────────
 
@@ -131,6 +134,12 @@ class AnalysisWorker:
         عند الفشل الـ Blocking يُعيد error_report بدلاً من رفع exception.
         """
         run_id = str(uuid.uuid4())
+
+        # استيراد SahmAPIError بشكل شرطي لتجنب ImportError عند غياب المكتبة
+        try:
+            from analysis_worker.adapters.sahm_adapter import SahmAPIError
+        except ImportError:
+            SahmAPIError = None
 
         try:
             raw = self._l1_load(symbol, period)
@@ -151,6 +160,13 @@ class AnalysisWorker:
         except AnalysisFailed as e:
             return self._error_report(run_id, symbol, period,
                                       "ANALYSIS_FAIL", str(e))
+        except Exception as e:
+            if SahmAPIError is not None and isinstance(e, SahmAPIError):
+                return self._error_report(run_id, symbol, period,
+                                          e.code, e.message)
+            return self._error_report(run_id, symbol, period,
+                                      "UNEXPECTED_ERROR",
+                                      f"{type(e).__name__}: {e}")
 
     # ── L1: Source Load & Validation ───────────────────
 
@@ -316,7 +332,6 @@ class AnalysisWorker:
             or "لا تحذيرات"
         )
 
-        # حقول kpi_cards المفقودة — لإبلاغ Claude بعدم الاستناد إليها
         missing_kpi_labels = [
             c["label"]
             for c in raw.get("kpi_cards", [])
@@ -351,7 +366,6 @@ class AnalysisWorker:
 
     def _parse_l4_response(self, text: str) -> dict:
         """يستخرج JSON من رد Claude ويتحقق منه."""
-        # استخراج JSON
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if not match:
             raise AnalysisFailed("رد Claude لا يحتوي JSON صحيح")
@@ -361,17 +375,14 @@ class AnalysisWorker:
         except json.JSONDecodeError as e:
             raise AnalysisFailed(f"JSON parse error: {e}")
 
-        # تحقق من الحقول الإلزامية
         required = ["stance", "stance_label", "analysis_text", "signals", "risks"]
         missing  = [k for k in required if k not in result]
         if missing:
             raise AnalysisFailed(f"L4 response ناقص: {missing}")
 
-        # تحقق من stance
         if result["stance"] not in VALID_STANCES:
             raise AnalysisFailed(f"stance غير صالح: {result['stance']}")
 
-        # Phase 1: recommendation = null دائماً
         result["recommendation"] = None
         return result
 
@@ -386,7 +397,6 @@ class AnalysisWorker:
         cashflow = raw.get("financials", {}).get("cash_flow", {})
         all_fields = {**income, **balance, **cashflow}
 
-        # حقول kpi_cards — بـ prefix "kpi:" لتمييزها عن financials
         kpi_fields = {
             f"kpi:{c['id']}": {"status": c.get("status")}
             for c in raw.get("kpi_cards", [])
@@ -394,13 +404,11 @@ class AnalysisWorker:
         }
         all_fields_full = {**all_fields, **kpi_fields}
 
-        # تصنيف الحقول — شامل financials + kpi_cards
         confirmed  = [k for k, v in all_fields_full.items() if v.get("status") == "confirmed"]
         calculated = [k for k, v in all_fields_full.items() if v.get("status") == "calculated"]
         estimated  = [k for k, v in all_fields_full.items() if v.get("status") == "estimated"]
         missing    = [k for k, v in all_fields_full.items() if v.get("status") == "missing"]
 
-        # تحديد QA status
         if estimated:
             qa_status = "PASS_WITH_ESTIMATES"
         elif any(w["code"] == "DATA_COMPLETENESS_WARNING"
