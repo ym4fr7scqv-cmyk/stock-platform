@@ -101,6 +101,50 @@ def _sub(a, b):
     return None
 
 
+def _pick_period(records, period: str) -> dict:
+    """
+    يختار العنصر الصحيح من list الفترات بمطابقة السنة في report_date.
+    - period مثل "FY2024" → يبحث عن "2024" في report_date
+    - إذا لم يجد تطابقاً → يُعيد العنصر الأول (أحدث فترة)
+    - إذا لم تكن records list/dict → يُعيد {}
+    """
+    if isinstance(records, dict):
+        return records  # مسطّح بالفعل
+    if not isinstance(records, list) or not records:
+        return {}
+    year = period.replace("FY", "").replace("fy", "").strip()
+    for item in records:
+        if isinstance(item, dict):
+            rd = str(item.get("report_date", "") or "")
+            if year and year in rd:
+                return item
+    # fallback: أول عنصر (الأحدث)
+    first = records[0]
+    return first if isinstance(first, dict) else {}
+
+
+def _pick_prior(records, period: str) -> dict:
+    """
+    يختار فترة السنة السابقة لحساب YoY.
+    - period="FY2024" → يبحث عن "2023"
+    - fallback: العنصر الثاني في القائمة
+    """
+    if not isinstance(records, list) or len(records) < 2:
+        return {}
+    try:
+        year_prior = str(int(period.replace("FY", "").strip()) - 1)
+    except (ValueError, AttributeError):
+        year_prior = ""
+    for item in records:
+        if isinstance(item, dict):
+            rd = str(item.get("report_date", "") or "")
+            if year_prior and year_prior in rd:
+                return item
+    # fallback: العنصر الثاني
+    second = records[1]
+    return second if isinstance(second, dict) else {}
+
+
 # ── SahmAdapter ───────────────────────────────────────────────────
 
 class SahmAdapter:
@@ -261,32 +305,47 @@ class SahmAdapter:
             })
 
         # ── financials ────────────────────────────────────────────
-        # financials() يُعيد: {income_statements:{...}, balance_sheets:{...}, cash_flows:{...}}
-        # (مفاتيح جمع) — مع fallback للمفرد للتوافق مع إصدارات سابقة
-        inc = fin.get("income_statements") or fin.get("income_statement") or {}
-        bal = fin.get("balance_sheets")    or fin.get("balance_sheet")    or {}
-        cf  = fin.get("cash_flows")        or fin.get("cash_flow")        or \
-              fin.get("cashflow")          or {}
+        # financials() يُعيد: {income_statements:[...], balance_sheets:[...], cash_flows:[...]}
+        # كل قسم list من الفترات — نختار الفترة الصحيحة بـ _pick_period
+        inc_records = fin.get("income_statements") or fin.get("income_statement") or []
+        bal_records = fin.get("balance_sheets")    or fin.get("balance_sheet")    or []
+        cf_records  = fin.get("cash_flows")        or fin.get("cash_flow")        or \
+                      fin.get("cashflow")          or []
 
-        # income — الحقول المؤكدة من API: revenue, net_income, eps
-        revenue_v   = _safe_float(inc, "revenue", "total_revenue", "total_income")
+        inc   = _pick_period(inc_records, period)
+        inc_b = _pick_prior(inc_records,  period)
+        bal   = _pick_period(bal_records, period)
+        bal_b = _pick_prior(bal_records,  period)
+        cf    = _pick_period(cf_records,  period)
+
+        log.info(f"[SahmAdapter] inc period={inc.get('report_date')} | "
+                 f"inc_b period={inc_b.get('report_date')} | "
+                 f"bal period={bal.get('report_date')}")
+
+        # income — أسماء الحقول الفعلية من API
+        revenue_v   = _safe_float(inc, "total_revenue", "revenue", "total_income")
+        gross_v     = _safe_float(inc, "gross_profit")
         op_income_v = _safe_float(inc, "operating_income", "ebit", "operating_profit")
         ni_v        = _safe_float(inc, "net_income", "net_profit", "profit_after_tax")
         eps         = eps or _safe_float(inc, "eps", "earnings_per_share")
 
-        # prior year — غير متاح مباشرة من API في الإصدار الحالي
-        revenue_b   = None
-        op_income_b = None
-        ni_b        = None
+        # prior year — من العنصر الثاني في القائمة
+        revenue_b   = _safe_float(inc_b, "total_revenue", "revenue")
+        op_income_b = _safe_float(inc_b, "operating_income")
+        ni_b        = _safe_float(inc_b, "net_income", "net_profit")
 
-        # balance — الحقول المؤكدة: total_assets, total_equity
+        # balance — أسماء الحقول الفعلية من API
         assets_v = _safe_float(bal, "total_assets", "assets")
-        equity_v = _safe_float(bal, "total_equity", "shareholders_equity", "equity")
+        equity_v = _safe_float(bal, "stockholders_equity", "total_equity",
+                               "shareholders_equity", "equity")
         liab_v   = _safe_float(bal, "total_liabilities", "liabilities")
-        assets_b = None
-        equity_b = None
+        assets_b = _safe_float(bal_b, "total_assets", "assets")
+        equity_b = _safe_float(bal_b, "stockholders_equity", "total_equity",
+                               "shareholders_equity", "equity")
 
+        # cash flow — أسماء الحقول الفعلية من API
         ocf_v   = _safe_float(cf, "operating_cash_flow", "ocf", "cash_from_operations")
+        fcf_v   = _safe_float(cf, "free_cash_flow", "fcf")
         capex_v = _safe_float(cf, "capex", "capital_expenditure", "capital_expenditures")
 
         revenue_yoy = _yoy(revenue_v, revenue_b)
@@ -356,7 +415,7 @@ class SahmAdapter:
         financials = {
             "income_statement": {
                 "revenue":                 _field(revenue_v,   revenue_b,   revenue_yoy),
-                "gross_profit":            _missing("غير متاح مباشرة من API"),
+                "gross_profit":            _field(gross_v)     if gross_v is not None else _missing("غير متاح"),
                 "operating_income":        _field(op_income_v, op_income_b, _yoy(op_income_v, op_income_b)),
                 "net_income_continuing":   _field(ni_v,        ni_b,        ni_yoy),
                 "net_income_discontinued": _missing("لا عمليات متوقفة"),
@@ -369,8 +428,9 @@ class SahmAdapter:
                 "total_liabilities": _field(liab_calc, status=liab_status),
             },
             "cash_flow": {
-                "ocf":   _field(ocf_v),
-                "capex": _field(capex_v),
+                "ocf":            _field(ocf_v),
+                "free_cash_flow": _field(fcf_v),
+                "capex":          _field(capex_v),
             },
         }
 
