@@ -206,5 +206,81 @@ def raw_keys(symbol: str, token: str = ""):
     return result
 
 
+@app.get("/admin/raw-structure/{symbol}")
+def raw_structure(symbol: str, token: str = ""):
+    """
+    Debug endpoint مؤقت — يكشف النوع الفعلي (dict/list) لكل قسم في financials + company.
+    الهدف: حسم هل financials nested as list أو dict، وهل يوجد period fields.
+    """
+    expected = os.environ.get("MANUAL_TRIGGER_TOKEN", "")
+    if not expected or token != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    sahm_key = os.environ.get("SAHM_API_KEY", "")
+    if not sahm_key:
+        raise HTTPException(status_code=500, detail="SAHM_API_KEY not set")
+    from sahmk import SahmkClient
+    client = SahmkClient(sahm_key)
+    sym = symbol.upper()
+
+    def _describe(val):
+        """يصف قيمة: نوعها، وإذا كانت list يعطي تفاصيل العناصر."""
+        t = type(val).__name__
+        if isinstance(val, dict):
+            return {"type": "dict", "keys": list(val.keys())}
+        if isinstance(val, list):
+            result = {"type": "list", "length": len(val)}
+            if len(val) > 0:
+                first = val[0]
+                result["first_item_type"] = type(first).__name__
+                if isinstance(first, dict):
+                    result["first_item_keys"] = list(first.keys())
+                    # هل فيه حقول period؟
+                    period_fields = {k: first[k] for k in first
+                                     if any(p in k.lower() for p in
+                                            ["period", "year", "fiscal", "date", "quarter"])}
+                    result["first_item_period_fields"] = period_fields
+            if len(val) > 1:
+                second = val[1]
+                if isinstance(second, dict):
+                    result["second_item_keys"] = list(second.keys())
+            return result
+        return {"type": t, "value_preview": str(val)[:100]}
+
+    result = {}
+
+    # ── company ──────────────────────────────────────────────────────
+    try:
+        c = client.company(sym)
+        result["company_type"] = type(c).__name__
+        if isinstance(c, dict):
+            result["company_top_keys"] = list(c.keys())
+            # فحص كل قسم nested
+            for section in ["fundamentals", "analysts", "valuation",
+                             "technicals", "dividends", "analyst_consensus",
+                             "consensus", "price_ratios"]:
+                if section in c:
+                    result[f"company__{section}"] = _describe(c[section])
+    except Exception as e:
+        result["company_error"] = str(e)
+
+    # ── financials ───────────────────────────────────────────────────
+    try:
+        f = client.financials(sym)
+        result["financials_type"] = type(f).__name__
+        if isinstance(f, dict):
+            result["financials_top_keys"] = list(f.keys())
+            # فحص المفاتيح الجمع والمفردة
+            for section in ["income_statements", "income_statement",
+                             "balance_sheets",   "balance_sheet",
+                             "cash_flows",        "cash_flow",
+                             "cashflow",          "cashflow_statement"]:
+                if section in f:
+                    result[f"financials__{section}"] = _describe(f[section])
+    except Exception as e:
+        result["financials_error"] = str(e)
+
+    return result
+
+
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
