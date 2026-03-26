@@ -1,0 +1,214 @@
+{
+  "symbol": "1120",
+  "period": "FY2024",
+  "meta": {
+    "symbol": "1120",
+    "company_name": "مصرف الراجحي",
+    "sector": "بنوك",
+    "sector_type": "banking",
+    "period": "FY2024",
+    "period_type": "annual",
+    "filing_date": "2025-02-09",
+    "filing_type": "annual_pdf",
+    "source_id": "353_0_2025-02-09_10-59-21_Ar",
+    "source_url": "https://www.saudiexchange.sa/Resources/fsPdf/353_0_2025-02-09_10-59-21_Ar.pdf",
+    "unit": "ألف ريال سعودي",
+    "unit_code": "SAR_THOUSANDS",
+    "base_period": "FY2023"
+  },
+  "kpi_cards": [
+    {
+      "id": "current_price",
+      "label": "السعر الحالي",
+      "value": null,
+      "unit": "ريال",
+      "yoy_pct": null,
+      "status": "missing",
+      "source": null,
+      "as_of": null
+    },
+    {
+      "id": "pe_ratio",
+      "label": "P/E",
+      "value": null,
+      "unit": "x",
+      "yoy_pct": null,
+      "status": "missing",
+      "source": null,
+      "as_of": null
+    },
+    {
+      "id": "pb_ratio",
+      "label": "P/B",
+      "value": null,
+      "unit": "x",
+      "yoy_pct": null,
+      "status": "missing",
+      "source": null,
+      "as_of": null
+    },
+    {
+      "id": "revenue_growth",
+      "label": "نمو إجمالي دخل العمليات",
+      "value": 16.4,
+      "unit": "%",
+      "yoy_pct": 16.4,
+      "status": "confirmed",
+      "source": "PDF 353_0_2025-02-09 — page 10",
+      "as_of": null
+    },
+    {
+      "id": "net_margin",
+      "label": "هامش صافي الربح",
+      "value": 61.6,
+      "unit": "%",
+      "yoy_pct": null,
+      "status": "calculated",
+      "source": "19,731,186 / 32,055,303",
+      "as_of": null
+    },
+    {
+      "id": "ev_ebitda",
+      "label": "العائد على حقوق الملكية (ROE)",
+      "value": 17.2,
+      "unit": "%",
+      "yoy_pct": null,
+      "status": "calculated",
+      "source": "19,731,186 / ((123,139,231 + 106,759,431) / 2)",
+      "as_of": null
+    }
+  ],
+  "financials": {
+    "income_statement": {
+      "revenue": {
+        "value": 32055303,
+        "base": 27531409,
+        "yoy_pct": 16.4,
+        "status": "confirmed",
+        "note": "إجمالي دخل العمليات — المقياس المعياري للإيرادات في قطاع البنوك"
+      },
+      "gross_profit": {
+        "value": null,
+        "base": null,
+        "yoy_pct": null,
+        "status": "missing",
+        "note": "غير قابل للتطبيق في قطاع البنوك"
+      },
+      "operating_income": {
+        "value": 21967895,
+        "base": 18529285,
+        "yoy_pct": 18.6,
+        "status": "confirmed",
+        "note": "صافي دخل السنة قبل الزكاة"
+      },
+      "net_income_continuing": {
+        "value": 19731186,
+        "base": 16621159,
+        "yoy_pct": 18.7,
+        "status": "confirmed",
+        "note": null
+      },
+      "net_income_discontinued": {
+        "value": null,
+        "base": null,
+        "yoy_pct": null,
+        "status": "missing",
+        "note": "لا يوجد عمليات متوقفة"
+      },
+      "net_income": {
+        "value": 19731186,
+        "base": 16621159,
+        "yoy_pct": 18.7,
+        "status": "confirmed",
+        "note": null
+      },
+      "eps": {
+        "value": null,
+        "base": null,
+        "yoy_pct": null,
+        "status": "missing",
+        "note": null
+      }
+    },
+    "balance_sheet": {
+      "total_assets": {
+        "value": 974386656,
+        "base": 808098272,
+        "yoy_pct": 20.6,
+        "status": "confirmed",
+        "note": null
+      },
+      "total_equity": {
+        "value": 123139231,
+        "base": 106759431,
+        "yoy_pct": 15.3,
+        "status": "confirmed",
+        "note": "من قائمة التغيرات في حقوق الملكية — page 12"
+      },
+      "total_liabilities": {
+        "value": 851247425,
+        "base": 701338841,
+        "yoy_pct": 21.4,
+        "status": "calculated",
+        "note": "974,386,656 - 123,139,231 = 851,247,425 ✓ (مطابق للقائمة مباشرةً)"
+      }
+    },
+    "cash_flow": {
+      "ocf": {
+        "value": null,
+        "base": null,
+        "yoy_pct": null,
+        "status": "missing",
+        "note": "غير مُدرج في هذا الـ seed — تدفقات البنوك تحتاج تفصيلاً منفصلاً"
+      },
+      "capex": {
+        "value": null,
+        "base": null,
+        "yoy_pct": null,
+        "status": "missing",
+        "note": null
+      }
+    }
+  },
+  "delta": {
+    "type": "STRUCTURAL",
+    "what": "صافي الربح نما +18.7% وإجمالي دخل العمليات +16.4%",
+    "why": "نمو عضوي حقيقي مستدام: محفظة التمويل نمت +16.7% (693B مقابل 594B)، والودائع نمت +9.6%. توسع ملحوظ في الميزانية +20.6% مدفوعاً بنمو التمويل والاستثمارات. لا توجد بنود استثنائية.",
+    "will_persist": true,
+    "confidence": "high"
+  },
+  "data_quality": {
+    "warnings": [
+      {
+        "code": "BANKING_SECTOR_NOTE",
+        "field": "income_statement.revenue",
+        "message": "تم استخدام إجمالي دخل العمليات بديلاً للإيرادات — المعيار القياسي لقطاع البنوك"
+      },
+      {
+        "code": "DATA_COMPLETENESS_WARNING",
+        "field": "cash_flow",
+        "message": "التدفقات النقدية غير متاحة في هذا الـ seed — ليست حاسمة لتقييم البنوك"
+      }
+    ]
+  },
+  "provenance": {
+    "primary_source": "353_0_2025-02-09_10-59-21_Ar.pdf",
+    "source_type": "annual_pdf",
+    "fallback_used": false,
+    "pages_referenced": ["9", "10", "12"],
+    "fields_source_map": {
+      "revenue (total_operating_income)": "page 10",
+      "operating_income (pre-zakat)": "page 10",
+      "net_income": "page 10",
+      "total_assets": "page 9",
+      "total_liabilities": "page 9",
+      "total_equity": "page 12"
+    },
+    "verification_notes": [
+      "974,386,656 - 851,247,425 = 123,139,231 (حقوق الملكية مطابقة) ✓",
+      "19,731,186 / 32,055,303 = 61.6% (هامش صافي الربح) ✓",
+      "19,731,186 / 114,949,331 = 17.2% (ROE — متوسط حقوق الملكية) ✓",
+      "(19,731,186 - 16,621,159) / 16,621,159 = 18.7% (نمو صافي الربح) ✓"
+    ]
+  }
+}
