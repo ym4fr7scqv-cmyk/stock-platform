@@ -101,6 +101,46 @@ def _sub(a, b):
     return None
 
 
+def _pick_period_debug(records, period: str) -> dict:
+    """
+    نسخة موسّعة من _pick_period — تُعيد metadata كاملة للتشخيص:
+    {record, index, report_date, matched, all_dates[:3], all_period_labels[:3]}
+    """
+    empty = {"record": {}, "index": -1, "report_date": None,
+             "matched": False, "all_dates": [], "all_period_labels": []}
+
+    if isinstance(records, dict):
+        return {**empty, "record": records, "index": 0, "matched": True,
+                "all_dates": [records.get("report_date")],
+                "all_period_labels": [records.get("period_label", records.get("period"))]}
+
+    if not isinstance(records, list) or not records:
+        return empty
+
+    year = period.replace("FY", "").replace("fy", "").strip()
+    all_dates  = [str(r.get("report_date", "") or "") for r in records if isinstance(r, dict)]
+    all_labels = [str(r.get("period_label", r.get("period", r.get("fiscal_year", ""))) or "")
+                  for r in records if isinstance(r, dict)]
+
+    for idx, item in enumerate(records):
+        if isinstance(item, dict):
+            rd = str(item.get("report_date", "") or "")
+            if year and year in rd:
+                return {"record": item, "index": idx, "report_date": rd,
+                        "matched": True,
+                        "all_dates":  all_dates[:3],
+                        "all_period_labels": all_labels[:3]}
+
+    # fallback
+    first = records[0]
+    return {"record": first if isinstance(first, dict) else {},
+            "index": 0,
+            "report_date": str(first.get("report_date", "") or "") if isinstance(first, dict) else None,
+            "matched": False,
+            "all_dates":  all_dates[:3],
+            "all_period_labels": all_labels[:3]}
+
+
 def _pick_period(records, period: str) -> dict:
     """
     يختار العنصر الصحيح من list الفترات بمطابقة السنة في report_date.
@@ -312,15 +352,42 @@ class SahmAdapter:
         cf_records  = fin.get("cash_flows")        or fin.get("cash_flow")        or \
                       fin.get("cashflow")          or []
 
-        inc   = _pick_period(inc_records, period)
-        inc_b = _pick_prior(inc_records,  period)
-        bal   = _pick_period(bal_records, period)
-        bal_b = _pick_prior(bal_records,  period)
-        cf    = _pick_period(cf_records,  period)
+        _inc_d = _pick_period_debug(inc_records, period)
+        _bal_d = _pick_period_debug(bal_records, period)
+        _cf_d  = _pick_period_debug(cf_records,  period)
 
-        log.info(f"[SahmAdapter] inc period={inc.get('report_date')} | "
-                 f"inc_b period={inc_b.get('report_date')} | "
-                 f"bal period={bal.get('report_date')}")
+        inc   = _inc_d["record"]
+        bal   = _bal_d["record"]
+        cf    = _cf_d["record"]
+        inc_b = _pick_prior(inc_records, period)
+        bal_b = _pick_prior(bal_records, period)
+
+        _period_debug = {
+            "inc_report_date_selected":    _inc_d["report_date"],
+            "inc_statement_index_selected":_inc_d["index"],
+            "inc_period_label_selected":   _inc_d.get("all_period_labels", [None])[_inc_d["index"]] if _inc_d["index"] >= 0 and _inc_d.get("all_period_labels") else None,
+            "inc_matched":                 _inc_d["matched"],
+            "top_3_income_report_dates":   _inc_d["all_dates"],
+            "top_3_income_period_labels":  _inc_d["all_period_labels"],
+
+            "bal_report_date_selected":    _bal_d["report_date"],
+            "bal_statement_index_selected":_bal_d["index"],
+            "bal_period_label_selected":   _bal_d.get("all_period_labels", [None])[_bal_d["index"]] if _bal_d["index"] >= 0 and _bal_d.get("all_period_labels") else None,
+            "bal_matched":                 _bal_d["matched"],
+            "top_3_balance_report_dates":  _bal_d["all_dates"],
+            "top_3_balance_period_labels": _bal_d["all_period_labels"],
+
+            "cf_report_date_selected":     _cf_d["report_date"],
+            "cf_statement_index_selected": _cf_d["index"],
+            "cf_period_label_selected":    _cf_d.get("all_period_labels", [None])[_cf_d["index"]] if _cf_d["index"] >= 0 and _cf_d.get("all_period_labels") else None,
+            "cf_matched":                  _cf_d["matched"],
+            "top_3_cashflow_report_dates": _cf_d["all_dates"],
+            "top_3_cashflow_period_labels":_cf_d["all_period_labels"],
+        }
+
+        log.info(f"[SahmAdapter] inc={_inc_d['report_date']} matched={_inc_d['matched']} | "
+                 f"bal={_bal_d['report_date']} matched={_bal_d['matched']} | "
+                 f"cf={_cf_d['report_date']} matched={_cf_d['matched']}")
 
         # income — أسماء الحقول الفعلية من API
         revenue_v   = _safe_float(inc, "total_revenue", "revenue", "total_income")
@@ -452,6 +519,7 @@ class SahmAdapter:
             "endpoints_used":  ["quote", "company", "financials"],
             "consensus_note":  "unavailable_by_plan" if not has_consensus else "available",
             "period_note":     "requested_period_only — API does not filter by period",
+            "period_debug":    _period_debug,
         }
 
         return {
