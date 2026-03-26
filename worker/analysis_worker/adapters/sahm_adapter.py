@@ -163,7 +163,7 @@ class SahmAdapter:
     def _fetch_financials(self, symbol: str, period: str) -> dict:
         """
         يجلب القوائم المالية.
-        الـ API يُعيد: {income_statement: {...}, balance_sheet: {...}}
+        الـ API يُعيد: {income_statements: {...}, balance_sheets: {...}, cash_flows: {...}}
 
         ملاحظة: client.financials() لا يقبل period كمعامل —
         البيانات المُعادة هي آخر فترة متاحة في API.
@@ -224,13 +224,23 @@ class SahmAdapter:
         pe  = _safe_float(company, "pe_ratio", "pe", "price_to_earnings") or \
               _safe_float(fundamentals, "pe_ratio", "pe")
         pb  = _safe_float(company, "pb_ratio", "pb", "price_to_book")     or \
-              _safe_float(fundamentals, "pb_ratio", "pb")
+              _safe_float(fundamentals, "pb_ratio", "pb", "price_to_book")
         eps = _safe_float(company, "eps", "earnings_per_share")           or \
               _safe_float(fundamentals, "eps")
 
-        # ── analyst_consensus — Pro فقط ───────────────────────────
-        consensus_raw = company.get("analyst_consensus") or company.get("consensus") or {}
-        has_consensus = any(consensus_raw.get(f) is not None for f in CONSENSUS_FIELDS)
+        # ── analyst_consensus — Starter (company["analysts"]) ────────
+        analysts_raw  = company.get("analysts") or {}
+        consensus_raw = (
+            analysts_raw if isinstance(analysts_raw, dict) and analysts_raw
+            else company.get("analyst_consensus") or company.get("consensus") or {}
+        )
+        # حقول analysts من سهمك: consensus, consensus_score, num_analysts,
+        # target_mean, target_median, target_high, target_low
+        has_consensus = any(
+            consensus_raw.get(f) is not None
+            for f in {"consensus", "target_mean", "target_price",
+                      "buy", "hold", "sell", "recommendation"}
+        )
         analyst_consensus_field = (
             consensus_raw if has_consensus
             else {
@@ -251,10 +261,12 @@ class SahmAdapter:
             })
 
         # ── financials ────────────────────────────────────────────
-        # financials() يُعيد مباشرة: {income_statement:{...}, balance_sheet:{...}}
-        inc = fin.get("income_statement") or {}
-        bal = fin.get("balance_sheet")    or {}
-        cf  = fin.get("cash_flow")        or fin.get("cashflow") or {}
+        # financials() يُعيد: {income_statements:{...}, balance_sheets:{...}, cash_flows:{...}}
+        # (مفاتيح جمع) — مع fallback للمفرد للتوافق مع إصدارات سابقة
+        inc = fin.get("income_statements") or fin.get("income_statement") or {}
+        bal = fin.get("balance_sheets")    or fin.get("balance_sheet")    or {}
+        cf  = fin.get("cash_flows")        or fin.get("cash_flow")        or \
+              fin.get("cashflow")          or {}
 
         # income — الحقول المؤكدة من API: revenue, net_income, eps
         revenue_v   = _safe_float(inc, "revenue", "total_revenue", "total_income")
