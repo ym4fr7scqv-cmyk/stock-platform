@@ -159,6 +159,10 @@ def trigger_analysis(symbol: str, token: str = "", period: str = ""):
         field = section_dict.get(key) or {}
         return field.get("value") if isinstance(field, dict) else None
 
+    def _yoy(section_dict, key):
+        field = section_dict.get(key) or {}
+        return field.get("yoy_pct") if isinstance(field, dict) else None
+
     def _kpi_val(kpi_id):
         for c in report.get("kpi_cards", []):
             if c.get("id") == kpi_id:
@@ -175,7 +179,12 @@ def trigger_analysis(symbol: str, token: str = "", period: str = ""):
     dq_warnings = [w.get("code") for w in (report.get("data_quality", {}).get("warnings") or [])]
 
     # period not found note
-    pi_status = prov.get("period_integrity") or report.get("period_integrity")
+    pi_status_raw = prov.get("period_integrity") or report.get("period_integrity")
+    if pi_status_raw == "PERIOD_EXACT_MATCH":
+        inc_date = str((prov.get("period_debug") or {}).get("inc_report_date_selected", "") or "")
+        pi_status = "FINAL_ANNUAL_MATCH" if inc_date.endswith("-12-31") else "PARTIAL_PERIOD_MATCH"
+    else:
+        pi_status = pi_status_raw
     period_not_found_note = (
         f"Requested {resolved_period} record not found in source API"
         if pi_status in ("MISSING_REQUESTED_PERIOD", "QUARTERLY_DATA_ONLY")
@@ -190,6 +199,8 @@ def trigger_analysis(symbol: str, token: str = "", period: str = ""):
         "stockholders_equity":  _val(bal, "total_equity"),
         "operating_cash_flow":  _val(cf, "ocf"),
         "free_cash_flow":       _val(cf, "free_cash_flow"),
+        "revenue_growth":       _yoy(inc, "revenue"),
+        "net_income_growth":    _yoy(inc, "net_income"),
         "current_price":        _kpi_val("current_price"),
         "pe_ratio":             _kpi_val("pe_ratio"),
         "pb_ratio":             _kpi_val("pb_ratio"),
