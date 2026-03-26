@@ -44,7 +44,7 @@ CONSENSUS_FIELDS = {"buy", "hold", "sell", "target_price", "recommendation"}
 # ── Helpers ───────────────────────────────────────────────────────
 
 def _safe_float(d: dict, *keys: str, default=None):
-    """يجرب مفاتيح متعددة ويُعيد أول قيمة رقمية."""
+    """يجرب مفاتيح متعددة ويُعيد أول قيمة ريمية."""
     for key in keys:
         val = d.get(key) if isinstance(d, dict) else None
         if val is not None:
@@ -57,7 +57,7 @@ def _safe_float(d: dict, *keys: str, default=None):
 
 def _field(value, base=None, yoy_pct=None,
            status=None, note=None, source=SAHMK_SOURCE, as_of=None):
-    # إذا لم يُمرَّر status صريح: None تعني missing، غير ذلك confirmed
+    # إذا لم يُمرَّر status صري٭: None تعني missing، غير ذلك confirmed
     if status is None:
         status = "missing" if value is None else "confirmed"
     return {
@@ -141,9 +141,94 @@ def _pick_period_debug(records, period: str) -> dict:
             "all_period_labels": all_labels[:3]}
 
 
+def _is_annual_record(date_str: str) -> bool:
+    """سجل سنوي = تاريخ ينتهي بـ -12-31"""
+    if not date_str:
+        return False
+    return str(date_str).endswith("-12-31") or str(date_str).endswith("/12/31")
+
+
+def _detect_quarterly_records(records: list, year: str) -> dict:
+    """
+    يكشف إذا كانت هناك سجلات ربع سنوية للسنة المطلوبة.
+    يُعيد: {found, quarters[:4], count}
+    """
+    if not isinstance(records, list) or not year:
+        return {"found": False, "quarters": [], "count": 0}
+    q_dates = []
+    for r in records:
+        if isinstance(r, dict):
+            rd = str(r.get("report_date", "") or "")
+            if year in rd and not _is_annual_record(rd):
+                q_dates.append(rd)
+    return {"found": bool(q_dates), "quarters": q_dates[:4], "count": len(q_dates)}
+
+
+def _classify_period_integrity(inc_d: dict, bal_d: dict, cf_d: dict,
+                                period: str,
+                                inc_records: list,
+                                bal_records: list,
+                                cf_records: list) -> dict:
+    """
+    يُصنّف سلامة الفترة المطلوبة ويُعيد توصية صريحة.
+
+    status values:
+      PERIOD_EXACT_MATCH      — السجلات الثلاثة مطابقة
+      PARTIAL_MATCH           — بعض السجلات مطابقة وبعضها لا
+      MISSING_REQUESTED_PERIOD — لا سجل سنوي مطابق ولا بيانات ربعية كافية
+      QUARTERLY_DATA_ONLY     — البيانات المتاحة ربعية فقط (بلا سنوي)
+
+    suggestion values:
+      annual_strict_only      — انتظر توفر البيانات السنوية الرسمية
+      quarterly_synthesis     — يمكن تركيب FY من الأرباع إذا توفر Q1-Q4
+    """
+    year     = period.replace("FY", "").replace("fy", "").strip()
+    is_fy    = period.upper().startswith("FY")
+
+    inc_matched = inc_d.get("matched", False)
+    bal_matched = bal_d.get("matched", False)
+    cf_matched  = cf_d.get("matched", False)
+    all_matched  = inc_matched and bal_matched and cf_matched
+    none_matched = not inc_matched and not bal_matched and not cf_matched
+
+    # هل توجد سجلات سنوية ضمن البيانات المتاحة؟
+    inc_dates = inc_d.get("all_dates", [])
+    any_annual = any(_is_annual_record(d) for d in inc_dates if d)
+
+    # هل يمكن تركيب FY من الأرباع؟
+    q_inc = _detect_quarterly_records(inc_records if isinstance(inc_records, list) else [], year)
+    q_bal = _detect_quarterly_records(bal_records if isinstance(bal_records, list) else [], year)
+    synthesis_possible = q_inc["count"] >= 4 and q_bal["found"]
+
+    if all_matched:
+        status = "PERIOD_EXACT_MATCH"
+    elif not is_fy:
+        status = "PERIOD_EXACT_MATCH" if not none_matched else "MISSING_REQUESTED_PERIOD"
+    elif none_matched:
+        status = "QUARTERLY_DATA_ONLY" if (not any_annual and inc_dates) else "MISSING_REQUESTED_PERIOD"
+    else:
+        status = "PARTIAL_MATCH"
+
+    suggestion = None
+    if status != "PERIOD_EXACT_MATCH":
+        suggestion = "quarterly_synthesis" if synthesis_possible else "annual_strict_only"
+
+    return {
+        "status":                    status,
+        "requested_period_found":    all_matched,
+        "inc_matched":               inc_matched,
+        "bal_matched":               bal_matched,
+        "cf_matched":                cf_matched,
+        "annual_records_available":  any_annual,
+        "quarterly_synthesis_possible": synthesis_possible,
+        "quarterly_income_dates":    q_inc["quarters"],
+        "suggestion":                suggestion,
+    }
+
+
 def _pick_period(records, period: str) -> dict:
     """
-    يختار العنصر الصحيح من list الفترات بمطابقة السنة في report_date.
+    يختار العنصر التحيح من list الفترات بمطابقة السنة في report_date.
     - period مثل "FY2024" → يبحث عن "2024" في report_date
     - إذا لم يجد تطابقاً → يُعيد العنصر الأول (أحدث فترة)
     - إذا لم تكن records list/dict → يُعيد {}
@@ -223,7 +308,7 @@ class SahmAdapter:
     # ── Fetch Methods ─────────────────────────────────────────────
 
     def _fetch_price_data(self, symbol: str) -> dict:
-        """يجلب السعر اللحظي — يعيد {} عند الفشل."""
+        """يجلب السعر اللحظي ℔ يعيد {} عند الفشل."""
         try:
             data = self._client.quote(symbol)
             log.debug(f"[quote] {symbol}: {data}")
@@ -356,11 +441,63 @@ class SahmAdapter:
         _bal_d = _pick_period_debug(bal_records, period)
         _cf_d  = _pick_period_debug(cf_records,  period)
 
-        inc   = _inc_d["record"]
-        bal   = _bal_d["record"]
-        cf    = _cf_d["record"]
-        inc_b = _pick_prior(inc_records, period)
-        bal_b = _pick_prior(bal_records, period)
+        # ── Period Integrity Check ─────────────────────────────────
+        _pi = _classify_period_integrity(
+            _inc_d, _bal_d, _cf_d, period,
+            inc_records, bal_records, cf_records
+        )
+        period_integrity_status = _pi["status"]
+        requested_period_found  = _pi["requested_period_found"]
+
+        if period_integrity_status in ("MISSING_REQUESTED_PERIOD", "QUARTERLY_DATA_ONLY"):
+            # لا نمرر أرقام fallback إلى L4 — البيانات المالية تُفرَّغ
+            inc = {}
+            bal = {}
+            cf  = {}
+            inc_b = {}
+            bal_b = {}
+            warnings.append({
+                "code":            period_integrity_status,
+                "field":           "financials",
+                "message": (
+                    f"لم يُعثر على سجل سنوي مطابق للفترة {period}. "
+                    f"أحدث التواريخ المتاحة في API: {_inc_d['all_dates'][:3]}. "
+                    f"البيانات الريمية أُفرِغت ولم تُمرَّر. "
+                    f"الاقتراح: {_pi['suggestion']}."
+                ),
+                "available_dates": _inc_d["all_dates"][:3],
+                "suggestion":      _pi["suggestion"],
+                "quarterly_synthesis_possible": _pi["quarterly_synthesis_possible"],
+                "quarterly_income_dates":       _pi["quarterly_income_dates"],
+            })
+            log.warning(
+                f"[SahmAdapter] {symbol}/{period} → {period_integrity_status} | "
+                f"available: {_inc_d['all_dates'][:3]} | suggestion={_pi['suggestion']}"
+            )
+        elif period_integrity_status == "PARTIAL_MATCH":
+            # تطابق جزئي — نستخدم ما هو متاح لكن نُعلم بوضوح
+            inc   = _inc_d["record"] if _pi["inc_matched"] else {}
+            bal   = _bal_d["record"] if _pi["bal_matched"] else {}
+            cf    = _cf_d["record"]  if _pi["cf_matched"]  else {}
+            inc_b = _pick_prior(inc_records, period) if _pi["inc_matched"] else {}
+            bal_b = _pick_prior(bal_records, period) if _pi["bal_matched"] else {}
+            warnings.append({
+                "code":    "PARTIAL_PERIOD_MATCH",
+                "field":   "financials",
+                "message": (
+                    f"تطابق جزئي للفترة {period}: "
+                    f"inc={_pi['inc_matched']}, bal={_pi['bal_matched']}, cf={_pi['cf_matched']}. "
+                    f"الاقتراح: {_pi['suggestion']}."
+                ),
+                "suggestion": _pi["suggestion"],
+            })
+        else:
+            # PERIOD_EXACT_MATCH — المسار الطبيعي
+            inc   = _inc_d["record"]
+            bal   = _bal_d["record"]
+            cf    = _cf_d["record"]
+            inc_b = _pick_prior(inc_records, period)
+            bal_b = _pick_prior(bal_records, period)
 
         _period_debug = {
             "inc_report_date_selected":    _inc_d["report_date"],
@@ -385,9 +522,12 @@ class SahmAdapter:
             "top_3_cashflow_period_labels":_cf_d["all_period_labels"],
         }
 
-        log.info(f"[SahmAdapter] inc={_inc_d['report_date']} matched={_inc_d['matched']} | "
-                 f"bal={_bal_d['report_date']} matched={_bal_d['matched']} | "
-                 f"cf={_cf_d['report_date']} matched={_cf_d['matched']}")
+        log.info(
+            f"[SahmAdapter] {symbol}/{period} integrity={period_integrity_status} | "
+            f"inc={_inc_d['report_date']} matched={_inc_d['matched']} | "
+            f"bal={_bal_d['report_date']} matched={_bal_d['matched']} | "
+            f"cf={_cf_d['report_date']} matched={_cf_d['matched']}"
+        )
 
         # income — أسماء الحقول الفعلية من API
         revenue_v   = _safe_float(inc, "total_revenue", "revenue", "total_income")
@@ -427,7 +567,7 @@ class SahmAdapter:
             else None
         )
         roe = None
-        if ni_v is not None and equity_v is not None and equity_b is not None:
+        if ni_v is not None and equity_v  is not None and equity_b is not None:
             avg_eq = (equity_v + equity_b) / 2
             roe = round(ni_v / avg_eq * 100, 1) if avg_eq != 0 else None
         elif ni_v is not None and equity_v is not None and equity_v != 0:
@@ -435,9 +575,9 @@ class SahmAdapter:
 
         if revenue_v is None:
             warnings.append({
-                "code":    "DATA_COMPLETENESS_WARNING",
+                "code":    "DATA_COMPLETEINESS_WARNING",
                 "field":   "income_statement.revenue",
-                "message": "الإيرادات غير متاحة من API"
+                "message": "الإيرادات تيس من API"
             })
 
         # ── kpi_cards (6 بالترتيب) ────────────────────────────────
@@ -512,26 +652,31 @@ class SahmAdapter:
 
         # ── provenance ────────────────────────────────────────────
         provenance = {
-            "primary_source":  SAHMK_SOURCE,
-            "source_type":     "live_api",
-            "fallback_used":   False,
-            "fetched_at":      today_str,
-            "endpoints_used":  ["quote", "company", "financials"],
-            "consensus_note":  "unavailable_by_plan" if not has_consensus else "available",
-            "period_note":     "requested_period_only — API does not filter by period",
-            "period_debug":    _period_debug,
+            "primary_source":        SAHMK_SOURCE,
+            "source_type":           "live_api",
+            "fallback_used":         False,
+            "fetched_at":            today_str,
+            "endpoints_used":        ["quote", "company", "financials"],
+            "consensus_note":        "unavailable_by_plan" if not has_consensus else "available",
+            "period_note":           "API does not filter by period — period integrity validated locally",
+            "period_integrity":      period_integrity_status,
+            "requested_period_found": requested_period_found,
+            "period_debug":          _period_debug,
+            "period_integrity_detail": _pi,
         }
 
         return {
-            "symbol":            symbol,
-            "period":            period,
-            "meta":              meta,
-            "kpi_cards":         kpi_cards,
-            "financials":        financials,
-            "analyst_consensus": analyst_consensus_field,
-            "delta":             delta,
-            "data_quality":      {"warnings": warnings},
-            "provenance":        provenance,
+            "symbol":               symbol,
+            "period":               period,
+            "requested_period_found": requested_period_found,
+            "period_integrity":     period_integrity_status,
+            "meta":                 meta,
+            "kpi_cards":            kpi_cards,
+            "financials":           financials,
+            "analyst_consensus":    analyst_consensus_field,
+            "delta":                delta,
+            "data_quality":         {"warnings": warnings},
+            "provenance":           provenance,
         }
 
     # ── Error Handler ─────────────────────────────────────────────
