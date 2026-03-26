@@ -147,7 +147,7 @@ def trigger_analysis(symbol: str, token: str = "", period: str = ""):
         resolved_period,
         meta.get("qa_status", "UNKNOWN"),
         l4.get("stance"),
-        json.dumps(report, ensure_ascii=False),
+        json.dumps(report, ensure_ascii=True),
         meta.get("worker_version"),
     ))
     conn.commit()
