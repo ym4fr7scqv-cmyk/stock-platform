@@ -61,7 +61,7 @@ def get_report(symbol: str):
     if not row:
         raise HTTPException(
             status_code=404,
-            detail=f"لا يوجد تقرير ناجح للرمز {symbol} — جاري التحليل"
+            detail=f"مايوج؝ ىجوز للرمز {symbol} — جاري التحليل"
         )
     report, generated_at = row
     report["_fetched_at"] = generated_at.isoformat() if generated_at else None
@@ -149,7 +149,7 @@ def trigger_analysis(symbol: str, token: str = ""):
     conn.commit()
     cur.close()
     conn.close()
-    # ── debug_fields: القيم الفعلية التي وصلت لـ Claude ──────────
+    # ── debug_fields: القيم الفعلية التي وصمت لـ Claude ─────────
     def _val(section_dict, key):
         field = section_dict.get(key) or {}
         return field.get("value") if isinstance(field, dict) else None
@@ -274,7 +274,7 @@ def raw_keys(symbol: str, token: str = ""):
 def raw_structure(symbol: str, token: str = ""):
     """
     Debug endpoint مؤقت — يكشف النوع الفعلي (dict/list) لكل قسم في financials + company.
-    الهدف: حسم هل financials nested as list أو dict، وهل يوجد period fields.
+    الهدف: حسم هل financials nested as list أو dict، وهل يوج؝ period fields.
     """
     expected = os.environ.get("MANUAL_TRIGGER_TOKEN", "")
     if not expected or token != expected:
@@ -287,7 +287,7 @@ def raw_structure(symbol: str, token: str = ""):
     sym = symbol.upper()
 
     def _describe(val):
-        """يصف قيمة: نوعها، وإذا كانت list يعطي تفاصيل العناصر."""
+        """يصف قيمة: نوعها، و�eذا كانت list يعطي تفاصيل العناصر."""
         t = type(val).__name__
         if isinstance(val, dict):
             return {"type": "dict", "keys": list(val.keys())}
@@ -333,7 +333,7 @@ def raw_structure(symbol: str, token: str = ""):
         result["financials_type"] = type(f).__name__
         if isinstance(f, dict):
             result["financials_top_keys"] = list(f.keys())
-            # فحص المفاتيح الجمع والمفردة
+            # فحص المفاتيX� الجمع والمفردة
             for section in ["income_statements", "income_statement",
                              "balance_sheets",   "balance_sheet",
                              "cash_flows",        "cash_flow",
