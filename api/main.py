@@ -158,5 +158,53 @@ def trigger_analysis(symbol: str, token: str = ""):
     }
 
 
+@app.get("/admin/raw-keys/{symbol}")
+def raw_keys(symbol: str, token: str = ""):
+    expected = os.environ.get("MANUAL_TRIGGER_TOKEN", "")
+    if not expected or token != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    sahm_key = os.environ.get("SAHM_API_KEY", "")
+    if not sahm_key:
+        raise HTTPException(status_code=500, detail="SAHM_API_KEY not set")
+    from sahmk import SahmkClient
+    client = SahmkClient(sahm_key)
+    sym = symbol.upper()
+    result = {}
+    try:
+        q = client.quote(sym)
+        result["quote_keys"] = list(q.keys()) if isinstance(q, dict) else str(type(q))
+    except Exception as e:
+        result["quote_keys"] = f"ERROR: {e}"
+    try:
+        c = client.company(sym)
+        result["company_keys"] = list(c.keys()) if isinstance(c, dict) else str(type(c))
+        # تحقق من nested dicts
+        result["company_nested"] = {
+            k: list(v.keys()) if isinstance(v, dict) else type(v).__name__
+            for k, v in (c.items() if isinstance(c, dict) else {}.items())
+        }
+    except Exception as e:
+        result["company_keys"] = f"ERROR: {e}"
+    try:
+        f = client.financials(sym)
+        result["financials_keys"] = list(f.keys()) if isinstance(f, dict) else str(type(f))
+        if isinstance(f, dict):
+            for section in ["income_statement", "balance_sheet", "cash_flow",
+                            "cashflow", "cashflow_statement", "income", "balance"]:
+                if section in f:
+                    v = f[section]
+                    result[f"financials_{section}_keys"] = (
+                        list(v.keys()) if isinstance(v, dict) else str(type(v))
+                    )
+    except Exception as e:
+        result["financials_keys"] = f"ERROR: {e}"
+    try:
+        d = client.dividends(sym)
+        result["dividends_keys"] = list(d.keys()) if isinstance(d, dict) else str(type(d))
+    except Exception as e:
+        result["dividends_keys"] = f"ERROR: {e}"
+    return result
+
+
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
