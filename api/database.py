@@ -12,7 +12,7 @@ def get_conn():
 
 def init_db():
     """
-    ينشئ الجداول ويُدرج الأسهم الخمسة عند أول تشغيل.
+    ينشئ الجداول ويُدرج الأسهم الستة عند أول تشغيل.
     آمن للاستدعاء المتكرر (IF NOT EXISTS / ON CONFLICT DO NOTHING).
     """
     conn = get_conn()
@@ -44,19 +44,17 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_reports_generated ON reports(generated_at DESC);
 
         INSERT INTO stocks (symbol, company_name, sector) VALUES
-    ('7010', 'شركة الاتصالات السعودية', 'اتصالات'),
-    ('2010', 'شركة سابك',                 'بتروكيماويات'),
-    ('2222', 'أرامكو السعودية',           'طاقة'),
-    ('1180', 'البنك الأهلي السعودي (SNB)',  'بنوك'),
-    ('1120', 'مصرف الراجحي',                'بنوك'),
-    ('5110', 'شركة الكهرباء السعودية',      'طاقة كهربائية')
-ON CONFLICT (symbol) DO UPDATE SET
-    company_name = EXCLUDED.company_name,
-    sector       = EXCLUDED.sector;
-""")
+            ('7010', 'شركة الاتصالات السعودية',    'اتصالات'),
+            ('2010', 'شركة سابك',                   'بتروكيماويات'),
+            ('2222', 'أرامكو السعودية',             'طاقة'),
+            ('1180', 'البنك الأهلي السعودي (SNB)',  'بنوك'),
+            ('1120', 'مصرف الراجحي',                'بنوك'),
+            ('5110', 'شركة الكهرباء السعودية',      'طاقة كهربائية')
+        ON CONFLICT (symbol) DO UPDATE SET
+            company_name = EXCLUDED.company_name,
+            sector       = EXCLUDED.sector;
+    """)
 
-conn.commit()
-cur.close()
-conn.close()
-
-  
+    conn.commit()
+    cur.close()
+    conn.close()
