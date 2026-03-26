@@ -250,24 +250,23 @@ def _pick_period(records, period: str) -> dict:
 
 def _pick_prior(records, period: str) -> dict:
     """
-    يختار فترة السنة السابقة لحساب YoY.
-    - period="FY2024" → يبحث عن "2023"
-    - fallback: العنصر الثاني في القائمة
+    يختار فترة السنة السابقة لحساب YoY — annual_strict_only.
+    - period="FY2025" → يبحث عن "2024" في سجلات سنوية فقط (-12-31)
+    - لا fallback إلى records[1] — يرجع {} إذا لم يوجد سجل سنوي مطابق
     """
-    if not isinstance(records, list) or len(records) < 2:
+    if not isinstance(records, list) or not records:
         return {}
     try:
         year_prior = str(int(period.replace("FY", "").strip()) - 1)
     except (ValueError, AttributeError):
-        year_prior = ""
+        return {}
     for item in records:
         if isinstance(item, dict):
             rd = str(item.get("report_date", "") or "")
-            if year_prior and year_prior in rd:
+            if year_prior and year_prior in rd and _is_annual_record(rd):
                 return item
-    # fallback: العنصر الثاني
-    second = records[1]
-    return second if isinstance(second, dict) else {}
+    # لا يوجد سجل سنوي للسنة السابقة — لا fallback
+    return {}
 
 
 # ── SahmAdapter ───────────────────────────────────────────────────
