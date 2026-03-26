@@ -210,6 +210,8 @@ class AnalysisWorker:
                     system=self._l4_system_prompt(),
                     messages=[{"role": "user", "content": prompt}]
                 )
+                if not response.content:
+                    raise AnalysisFailed("Claude API returned empty content")
                 return self._parse_l4_response(response.content[0].text)
             except AnalysisFailed:
                 raise

@@ -114,7 +114,7 @@ def health():
 
 
 @app.get("/admin/trigger/{symbol}")
-def trigger_analysis(symbol: str, token: str = ""):
+def trigger_analysis(symbol: str, token: str = "", period: str = None):
     expected = os.environ.get("MANUAL_TRIGGER_TOKEN", "")
     if not expected or token != expected:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -122,33 +122,39 @@ def trigger_analysis(symbol: str, token: str = ""):
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not set")
     sym    = symbol.upper()
-    period = PERIOD_MAP.get(sym, "FY2024")
+    # Fix 1: respect ?period= query param; fall back to PERIOD_MAP only if not provided
+    period = (period.upper() if period else None) or PERIOD_MAP.get(sym, "FY2024")
     worker = AnalysisWorker(anthropic_api_key=api_key)
     report = worker.run(sym, period, triggered_by="MANUAL")
     meta = report.get("meta", {})
     l4   = report.get("l4_output") or {}
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("""
-        INSERT INTO reports
-            (symbol, period, generated_at, qa_status, stance, report_json, worker_version)
-        VALUES (%s, %s, NOW(), %s, %s, %s::jsonb, %s)
-        ON CONFLICT (symbol, period) DO UPDATE SET
-            generated_at   = NOW(),
-            qa_status      = EXCLUDED.qa_status,
-            stance         = EXCLUDED.stance,
-            report_json    = EXCLUDED.report_json,
-            worker_version = EXCLUDED.worker_version
-    """, (
-        sym, period,
-        meta.get("qa_status", "UNKNOWN"),
-        l4.get("stance"),
-        json.dumps(report, ensure_ascii=True),
-        meta.get("worker_version"),
-    ))
-    conn.commit()
-    cur.close()
-    conn.close()
+    # Fix 2: wrap DB in try/except — DB failure must not leak as HTTP 500
+    try:
+        conn = get_conn()
+        cur  = conn.cursor()
+        cur.execute("""
+            INSERT INTO reports
+                (symbol, period, generated_at, qa_status, stance, report_json, worker_version)
+            VALUES (%s, %s, NOW(), %s, %s, %s::jsonb, %s)
+            ON CONFLICT (symbol, period) DO UPDATE SET
+                generated_at   = NOW(),
+                qa_status      = EXCLUDED.qa_status,
+                stance         = EXCLUDED.stance,
+                report_json    = EXCLUDED.report_json,
+                worker_version = EXCLUDED.worker_version
+        """, (
+            sym, period,
+            meta.get("qa_status", "UNKNOWN"),
+            l4.get("stance"),
+            json.dumps(report, ensure_ascii=True),
+            meta.get("worker_version"),
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as db_err:
+        import logging as _log
+        _log.getLogger(__name__).error(f"[trigger_analysis] DB error for {sym}: {db_err}")
     # ── debug_fields: القيم الفعلية التي وصمت لـ Claude ─────────
     def _val(section_dict, key):
         field = section_dict.get(key) or {}
@@ -348,3 +354,4 @@ def raw_structure(symbol: str, token: str = ""):
 
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+           
