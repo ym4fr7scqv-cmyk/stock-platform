@@ -148,6 +148,27 @@ def _is_annual_record(date_str: str) -> bool:
     return str(date_str).endswith("-12-31") or str(date_str).endswith("/12/31")
 
 
+def _find_latest_annual(records: list, today: datetime.date) -> str | None:
+    """
+    Auto-Period Detection: يبحث في القائمة عن أحدث سجل سنوي
+    لا يتجاوز تاريخ اليوم.
+    يُعيد report_date string (YYYY-MM-DD) أو None.
+    """
+    candidates = []
+    for r in records:
+        if not isinstance(r, dict):
+            continue
+        rd_str = str(r.get("report_date", "") or "")[:10]
+        if not rd_str or not _is_annual_record(rd_str):
+            continue
+        try:
+            if datetime.date.fromisoformat(rd_str) <= today:
+                candidates.append(rd_str)
+        except ValueError:
+            pass
+    return max(candidates) if candidates else None
+
+
 def _detect_quarterly_records(records: list, year: str) -> dict:
     """
     يكشف إذا كانت هناك سجلات ربع سنوية للسنة المطلوبة.
@@ -449,6 +470,51 @@ class SahmAdapter:
         period_integrity_status = _pi["status"]
         requested_period_found  = _pi["requested_period_found"]
 
+        # ── Auto-Period Detection ──────────────────────────────────
+        period_requested     = period   # الفترة الأصلية قبل أي تحويل
+        auto_period_switched = False
+        auto_period_reason   = None
+
+        if period_integrity_status == "MISSING_REQUESTED_PERIOD":
+            _today     = datetime.date.today()
+            _auto_date = _find_latest_annual(inc_records, _today)
+            if _auto_date:
+                _new_period = "FY" + _auto_date[:4]
+                if _new_period != period:
+                    _inc_d2 = _pick_period_debug(inc_records, _new_period)
+                    _bal_d2 = _pick_period_debug(bal_records, _new_period)
+                    _cf_d2  = _pick_period_debug(cf_records,  _new_period)
+                    _pi2    = _classify_period_integrity(
+                        _inc_d2, _bal_d2, _cf_d2, _new_period,
+                        inc_records, bal_records, cf_records
+                    )
+                    if _pi2["status"] != "MISSING_REQUESTED_PERIOD":
+                        period                  = _new_period
+                        _inc_d                  = _inc_d2
+                        _bal_d                  = _bal_d2
+                        _cf_d                   = _cf_d2
+                        _pi                     = _pi2
+                        period_integrity_status = _pi2["status"]
+                        requested_period_found  = _pi2["requested_period_found"]
+                        auto_period_switched    = True
+                        auto_period_reason      = (
+                            f"الفترة المطلوبة {period_requested} غير متاحة في API. "
+                            f"تم التحويل التلقائي إلى {period} "
+                            f"(أحدث سجل سنوي متاح: {_auto_date})"
+                        )
+                        meta["period"] = period
+                        warnings.append({
+                            "code":             "AUTO_PERIOD_SWITCH",
+                            "field":            "period",
+                            "message":          auto_period_reason,
+                            "period_requested": period_requested,
+                            "period_used":      period,
+                        })
+                        log.info(
+                            f"[SahmAdapter] {symbol} auto-switch: "
+                            f"{period_requested} → {period} | date={_auto_date}"
+                        )
+
         if period_integrity_status in ("MISSING_REQUESTED_PERIOD", "QUARTERLY_DATA_ONLY"):
             # لا نمرر أرقام fallback إلى L4 — البيانات المالية تُفرَّغ
             inc = {}
@@ -667,6 +733,10 @@ class SahmAdapter:
             "period_note":           "API does not filter by period — period integrity validated locally",
             "period_integrity":      period_integrity_status,
             "requested_period_found": requested_period_found,
+            "period_requested":      period_requested,
+            "period_used":           period,
+            "auto_period_switched":  auto_period_switched,
+            "auto_period_reason":    auto_period_reason,
             "period_debug":          _period_debug,
             "period_integrity_detail": _pi,
         }

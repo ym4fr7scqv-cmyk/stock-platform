@@ -143,7 +143,7 @@ def trigger_analysis(symbol: str, token: str = "", period: str = None):
                 report_json    = EXCLUDED.report_json,
                 worker_version = EXCLUDED.worker_version
         """, (
-            sym, period,
+            sym, meta.get("period", period),
             meta.get("qa_status", "UNKNOWN"),
             l4.get("stance"),
             json.dumps(report, ensure_ascii=True),
