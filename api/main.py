@@ -26,8 +26,8 @@ FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
 PERIOD_MAP = {
     "7010": "FY2025",
-    "1120": "FY2024",
-    "2222": "FY2024",
+    "1120": "FY2025",
+    "2222": "FY2025",
     "2010": "FY2024",
     "1180": "FY2024",
     "5110": "FY2024",
